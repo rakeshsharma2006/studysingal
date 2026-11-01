@@ -1,10 +1,9 @@
 require('dotenv').config()
 
-const { createApp } = require('./app')
+const app = require('./app')
 const { closeDatabase } = require('./database')
 
 const port = Number(process.env.PORT || 3001)
-const app = createApp()
 let server
 
 function shutdown() {
