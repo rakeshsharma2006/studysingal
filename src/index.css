@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+:root {
+  --primary: #7656E8;
+  --secondary-purple: #A58BFF;
+  --lavender: #F1ECFF;
+  --app-bg: #F7F6FB;
+  --card-bg: #FFFFFF;
+  --text-primary: #242038;
+  --text-secondary: #777187;
+  --border: #E9E5F0;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--app-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 400;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; min-height: 100%; background: var(--app-bg); }
+body { min-width: 320px; min-height: 100vh; margin: 0; }
+button, input, select { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--secondary-purple);
+  outline-offset: 2px;
+}
+::selection { color: #38266f; background: #e4dcff; }
