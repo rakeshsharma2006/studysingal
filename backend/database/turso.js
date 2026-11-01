@@ -39,8 +39,8 @@ function createTursoAdapter(client) {
         },
       }
     },
-    close() {
-      client.close()
+    async close() {
+      await client.close()
     },
     client,
   }
@@ -96,15 +96,27 @@ async function migrateTurso(client, migrationDirectory = path.join(__dirname, 'm
 
 async function createTursoDatabase({ url, authToken }) {
   if (!url || !authToken) {
-    throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are required for the production database.')
+    console.error(JSON.stringify({ event: 'database_configuration_missing', database: 'turso' }))
+    const unavailable = new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are required for the production database.')
+    unavailable.code = 'DATABASE_UNAVAILABLE'
+    throw unavailable
   }
   const client = createClient({ url, authToken })
   try {
     await migrateTurso(client)
     return createTursoAdapter(client)
   } catch (error) {
-    client.close()
-    throw error
+    await client.close()
+    console.error(JSON.stringify({
+      event: 'database_initialization_failed',
+      database: 'turso',
+      errorName: error.name,
+      errorCode: error.code,
+    }))
+    const unavailable = new Error('The production database could not be initialized.')
+    unavailable.code = 'DATABASE_UNAVAILABLE'
+    unavailable.cause = error
+    throw unavailable
   }
 }
 

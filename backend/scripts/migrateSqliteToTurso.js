@@ -75,14 +75,17 @@ async function migrateSqliteToTurso({
   backupPath = getBackupPath(sourcePath),
   url = process.env.TURSO_DATABASE_URL,
   authToken = process.env.TURSO_AUTH_TOKEN,
+  targetClient,
 } = {}) {
-  if (!url || !authToken) throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be configured.')
+  const isLocalTarget = url === ':memory:' || url?.startsWith('file:')
+  if (!url || (!authToken && !isLocalTarget)) throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be configured.')
   if (!fs.existsSync(sourcePath)) throw new Error(`Local SQLite database not found: ${sourcePath}`)
   if (fs.existsSync(backupPath)) throw new Error(`Backup destination already exists; choose a new path: ${backupPath}`)
 
   const local = new Database(sourcePath, { readonly: true, fileMustExist: true })
   let backup
-  let client
+  let client = targetClient
+  const ownsClient = !targetClient
   let transaction
   try {
     await local.backup(backupPath)
@@ -92,7 +95,7 @@ async function migrateSqliteToTurso({
     const foreignKeyViolations = backup.pragma('foreign_key_check')
     if (foreignKeyViolations.length) throw new Error(`SQLite source contains ${foreignKeyViolations.length} foreign-key violation(s).`)
 
-    client = createClient({ url, authToken })
+    client ||= createClient({ url, authToken })
     await migrateTurso(client)
     await assertTargetEmpty(client)
     const sourceCounts = Object.fromEntries(TABLES.map((table) => [
@@ -122,7 +125,7 @@ async function migrateSqliteToTurso({
   } finally {
     backup?.close()
     local.close()
-    client?.close()
+    if (ownsClient) await client?.close()
   }
 }
 

@@ -11,7 +11,7 @@ async function checkTurso() {
     if (Number(result.rows[0].connected) !== 1) throw new Error('Turso connectivity query returned an unexpected result.')
     return { status: 'connected' }
   } finally {
-    client.close()
+    await client.close()
   }
 }
 

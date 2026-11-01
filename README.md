@@ -1,6 +1,6 @@
 # StudySignal
 
-StudySignal is a single-user study planner. The lavender-purple React UI is backed by an Express API and persistent SQLite storage. Its analytics, recovery recommendations, and completion forecasts are transparent, rule-based summaries of recorded study activity.
+StudySignal is a single-user study planner. The lavender-purple React UI is backed by an Express API and SQLite-compatible storage. Local development uses the existing `better-sqlite3` database; production uses Turso through the async `@libsql/client` driver. Its analytics, recovery recommendations, and completion forecasts are transparent, rule-based summaries of recorded study activity.
 
 ## Installation and run locally
 
@@ -34,16 +34,29 @@ Vite runs at `http://localhost:5173` and proxies `/api` requests to Express at `
 | `VITE_API_BASE_URL` | `/api` | Frontend build-time API base URL; set to `https://<backend-domain>/api` when frontend and backend are deployed separately |
 | `KNOWLEDGE_NEEDS_ATTENTION_BELOW` | `50` | Evidence score below which a topic needs attention |
 | `KNOWLEDGE_REINFORCEMENT_BELOW` | `70` | Evidence score below which a topic needs reinforcement |
+| `TURSO_DATABASE_URL` | None | Production Turso/libSQL URL provided by Turso |
+| `TURSO_AUTH_TOKEN` | None | Production Turso access token; secret, configure only in the backend deployment environment |
 
-Thresholds must be between 0 and 100, with the reinforcement threshold no lower than the attention threshold. The paths in `.env` are resolved relative to the backend process working directory.
+Thresholds must be between 0 and 100, with the reinforcement threshold no lower than the attention threshold. The paths in `.env` are resolved relative to the backend process working directory. When `NODE_ENV=production` or either Turso setting is present, the backend uses Turso and requires both `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. Without those production conditions, it keeps using local `better-sqlite3`.
 
 ### Vercel deployment notes
 
-The backend directory must be the Vercel project's **Root Directory** so its `package.json` and Express entry point are installed and detected. Express on Vercel can use an exported app or a port listener; this backend currently uses the listener pattern, as described in [Vercel's Express deployment guide](https://vercel.com/docs/frameworks/backend/express). The repository has no Vercel project settings to inspect, so verify the project's Root Directory and deployment logs in the Vercel dashboard.
+This repository is connected to two Vercel projects. Set the **frontend** project's Root Directory to `./` and the **backend** project's Root Directory to `backend`. The backend's `index.js` exports the Express app for Vercel and still calls `app.listen()` when run directly with `npm start`/`npm run dev`. This follows [Vercel's Express deployment guide](https://vercel.com/docs/frameworks/backend/express); no extra `vercel.json` or serverless wrapper is required.
 
-Configure `CORS_ORIGINS` on the backend deployment with the exact deployed frontend origin(s), without a path. Configure `VITE_API_BASE_URL` on the frontend project as the backend URL ending in `/api`; Vite embeds this value at build time, so redeploy after changing it. The frontend displays an actionable error instead of attempting to parse platform HTML as API JSON.
+Configure `CORS_ORIGINS` on the backend deployment with the exact deployed frontend origin(s), without a path. Configure `KNOWLEDGE_NEEDS_ATTENTION_BELOW` and `KNOWLEDGE_REINFORCEMENT_BELOW` on the backend if overriding their defaults. Configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` as backend environment variables; never place them in frontend settings or source control. Configure `VITE_API_BASE_URL` on the frontend project as the backend URL ending in `/api`; Vite embeds this value at build time, so redeploy the frontend after changing it. The frontend displays an actionable error instead of attempting to parse platform HTML as API JSON. Production CORS is disabled when `CORS_ORIGINS` is unset rather than falling back to an open wildcard.
 
-**SQLite is not suitable for persistent writes on Vercel Functions.** Vercel's [Node.js Function filesystem](https://vercel.com/docs/functions/runtimes#file-system-support) is read-only except for temporary `/tmp` scratch space; `/tmp` is not durable storage. This application creates its SQLite file and applies migrations during app initialization, and uses WAL mode. Do not point `DATABASE_PATH` at `/tmp` as a production persistence workaround. Before production data writes, either deploy this backend on a host with a persistent disk/volume to retain SQLite, or approve a hosted database migration (for example Postgres) and its required data-layer changes. No database records are modified by deployment diagnostics.
+Vercel Function filesystems are read-only except for temporary scratch space. Production data is stored in Turso; do not point production `DATABASE_PATH` at `/tmp`. The API initializes schema migrations before serving API requests. `/api/health` executes a real database query and returns 503 if the database cannot initialize or answer.
+
+### Local SQLite → Turso transfer
+
+The migration command creates a consistent SQLite backup next to the source file, refuses to import into a target that already contains application rows, copies explicit primary keys and timestamps in foreign-key order, temporarily suppresses completion triggers during historical copy, restores those triggers, and verifies per-table row counts and foreign keys before committing. A failed transfer rolls back its Turso write transaction; the local source remains untouched.
+
+1. Stop local writes, make an additional manual copy of `backend/data/studysignal.sqlite`, and configure `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` in `backend/.env` or the execution environment. Do not share or commit that file.
+2. Ensure the Turso target is the intended new/empty database. Then run `npm run db:migrate:turso` from the repository root. The command prints only the backup path and per-table counts, never credentials.
+3. Keep the source DB and generated `studysignal-pre-turso-*.sqlite` backup unchanged until production verification is complete. A second run against a target containing imported rows intentionally aborts.
+4. Configure the two Turso variables in the backend Vercel project, configure CORS and knowledge thresholds, deploy, and verify `GET https://<backend-domain>/api/health` returns HTTP 200 JSON with `database: "connected"`. Check Vercel Runtime Logs if it does not.
+
+To roll back application deployment, restore the previous deployment and point it only at a database containing the data that deployment expects. The migration does not copy new production writes back into SQLite; do not switch a live deployment back to the old local database without a separate reverse-sync/export plan. Keep a separate Turso backup before production cutover and before any data recovery operation.
 
 ## Verify
 
@@ -53,7 +66,7 @@ npm run lint
 npm run build
 ```
 
-The API tests create and clean up their own temporary SQLite databases. There is no separate frontend unit-test runner configured; the React pages are build/lint checked and the key flows are covered by API integration tests and browser checks.
+The API tests create and clean up temporary SQLite and in-memory libSQL databases. The libSQL adapter/route suite exercises migrations, CORS, CRUD, constraints, and completion history locally; it does not replace a real Turso credentialed connection check. Run `npm run db:check:turso` only after configuring Turso credentials. There is no separate frontend unit-test runner configured; the React pages are build/lint checked and the key flows are covered by API integration tests and browser checks.
 
 ## Implemented frontend flows
 

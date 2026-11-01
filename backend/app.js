@@ -12,15 +12,21 @@ function createApp(databaseProvider = getDatabase) {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean)
+  const corsOrigin = allowedOrigins.length
+    ? allowedOrigins
+    : process.env.NODE_ENV === 'production' ? false : '*'
 
   app.disable('x-powered-by')
+  if (process.env.NODE_ENV === 'production' && !allowedOrigins.length) {
+    console.warn(JSON.stringify({ event: 'cors_origins_not_configured' }))
+  }
   app.use((req, res, next) => {
     req.requestId = randomUUID()
     res.setHeader('X-Request-Id', req.requestId)
     next()
   })
   app.use(cors({
-    origin: allowedOrigins.length ? allowedOrigins : '*',
+    origin: corsOrigin,
     exposedHeaders: ['X-Request-Id'],
   }))
   app.use(express.json({ limit: '1mb' }))

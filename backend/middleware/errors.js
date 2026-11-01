@@ -12,13 +12,28 @@ function errorHandler(error, req, res, next) {
   if (res.headersSent) return next(error)
 
   const requestId = req.requestId
-  if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+  if (error.code === 'DATABASE_UNAVAILABLE') {
+    console.error(JSON.stringify({ event: 'database_unavailable', requestId }))
+    return res.status(503).json({
+      error: {
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'The application database is temporarily unavailable.',
+        requestId,
+      },
+    })
+  }
+  const constraintCode = error.code === 'SQLITE_CONSTRAINT' && typeof error.message === 'string'
+    ? error.message
+    : error.code
+  if (constraintCode === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE constraint failed/i.test(constraintCode || '')) {
     return res.status(409).json({ error: { code: 'CONFLICT', message: 'A record with these values already exists.', requestId } })
   }
-  if (error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || error.code === 'SQLITE_CONSTRAINT_TRIGGER') {
+  if (constraintCode === 'SQLITE_CONSTRAINT_FOREIGNKEY' || constraintCode === 'SQLITE_CONSTRAINT_TRIGGER'
+    || /FOREIGN KEY constraint failed/i.test(constraintCode || '')) {
     return res.status(409).json({ error: { code: 'REFERENCED_RECORD', message: 'This record is referenced by other data and cannot be changed or deleted.', requestId } })
   }
-  if (error.code === 'SQLITE_CONSTRAINT_CHECK' || error.code === 'SQLITE_CONSTRAINT_NOTNULL') {
+  if (constraintCode === 'SQLITE_CONSTRAINT_CHECK' || constraintCode === 'SQLITE_CONSTRAINT_NOTNULL'
+    || /CHECK constraint failed|NOT NULL constraint failed/i.test(constraintCode || '')) {
     return res.status(400).json({ error: { code: 'CONSTRAINT_VIOLATION', message: 'The submitted data violates a database constraint.', requestId } })
   }
   if (error.type === 'entity.parse.failed') {

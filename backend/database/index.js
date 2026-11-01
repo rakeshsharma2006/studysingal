@@ -49,8 +49,7 @@ function getDatabase() {
 }
 
 function closeDatabase() {
-  return Promise.resolve(databasePromise).then((db) => {
-    db?.close?.()
+  return Promise.resolve(databasePromise).then((db) => db?.close?.(), () => undefined).finally(() => {
     database = undefined
     databasePromise = undefined
   })
