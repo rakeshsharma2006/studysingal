@@ -1,0 +1,14 @@
+{
+  "rewrites": [
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/syllabus", "destination": "/index.html" },
+    { "source": "/habits", "destination": "/index.html" },
+    { "source": "/study-sessions", "destination": "/index.html" },
+    { "source": "/planner", "destination": "/index.html" },
+    { "source": "/knowledge", "destination": "/index.html" },
+    { "source": "/analytics", "destination": "/index.html" },
+    { "source": "/recovery", "destination": "/index.html" },
+    { "source": "/forecast", "destination": "/index.html" },
+    { "source": "/settings", "destination": "/index.html" }
+  ]
+}
