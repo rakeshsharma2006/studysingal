@@ -112,14 +112,14 @@ function buildSubjectForecast({
   const completedTopics = subjectTopics.filter((topic) => topic.status === 'COMPLETED').length
   const remainingTopics = subjectTopics.length - completedTopics
   const window = getForecastWindow(today)
-  const completedEvents = completionHistory.filter((event) => (
+  const completedTopicsInWindow = new Set(completionHistory.filter((event) => (
     subjectTopics.some((topic) => topic.id === event.topic_id)
     && event.completed_at >= window.from
     && event.completed_at <= window.to
-  )).length
+  )).map((event) => event.topic_id)).size
   const baseline = estimateCompletion({
     remainingTopics,
-    completedTopicsInWindow: completedEvents,
+    completedTopicsInWindow,
     today,
     examDate: subject.exam_date,
   })
@@ -128,7 +128,7 @@ function buildSubjectForecast({
     && session.session_date >= window.from
     && session.session_date <= window.to
   ))
-  const currentRate = completedEvents ? completedEvents / FORECAST_WINDOW_DAYS : null
+  const currentRate = completedTopicsInWindow ? completedTopicsInWindow / FORECAST_WINDOW_DAYS : null
   const rates = [...new Set([currentRate, targetTopicsPerDay, ...scenarios]
     .filter((rate) => Number.isFinite(rate) && rate > 0))]
 
@@ -139,7 +139,7 @@ function buildSubjectForecast({
     exam_date: subject.exam_date,
     remaining_topics: remainingTopics,
     completed_topics: completedTopics,
-    recent_completed_topics: completedEvents,
+    recent_completed_topics: completedTopicsInWindow,
     recent_sessions: recentSessions.length,
     recent_study_minutes: recentSessions.reduce((total, session) => total + session.duration_minutes, 0),
     window,
@@ -149,7 +149,7 @@ function buildSubjectForecast({
       ...buildScenario({ remainingTopics, targetTopicsPerDay: rate, today, examDate: subject.exam_date }),
     })),
     assumptions: [
-      'Current pace uses completed topic events in the last 14 calendar days divided by 14.',
+      'Current pace uses distinct topics with completion events in the last 14 calendar days divided by 14.',
       'Scenario dates assume a steady target completion rate and round required days upward.',
       'Recent session minutes provide activity context but do not change the completion-rate formula.',
       'This is a transparent estimate, not a guarantee of completion or a prediction of exam marks.',

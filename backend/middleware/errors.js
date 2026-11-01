@@ -12,6 +12,11 @@ function errorHandler(error, req, res, next) {
   if (res.headersSent) return next(error)
 
   const requestId = req.requestId
+  if (typeof error.code === 'string' && error.code.startsWith('TIMER_')) {
+    return res.status(error.status || 409).json({
+      error: { code: error.code, message: error.message, requestId },
+    })
+  }
   if (error.code === 'DATABASE_UNAVAILABLE') {
     console.error(JSON.stringify({ event: 'database_unavailable', requestId }))
     return res.status(503).json({

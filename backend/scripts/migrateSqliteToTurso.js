@@ -13,6 +13,7 @@ const TABLES = [
   'habits',
   'habit_logs',
   'study_plans',
+  'study_timer_sessions',
   'study_sessions',
   'topic_assessments',
   'revision_tasks',
@@ -47,7 +48,8 @@ async function assertTargetEmpty(client) {
 }
 
 async function transferTable(transaction, source, table) {
-  const columns = source.prepare(`PRAGMA table_info("${table}")`).all().map((column) => column.name)
+  let columns = source.prepare(`PRAGMA table_info("${table}")`).all().map((column) => column.name)
+  if (table === 'study_timer_sessions') columns = columns.filter((column) => column !== 'study_session_id')
   if (!columns.length) throw new Error(`Local database is missing required table "${table}".`)
   const rows = source.prepare(`SELECT * FROM "${table}" ORDER BY id`).all()
   const sql = `INSERT INTO "${table}" (${columns.map((column) => `"${column}"`).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`
@@ -119,6 +121,12 @@ async function migrateSqliteToTurso({
     for (const table of TABLES) {
       await transferTable(transaction, backup, table)
     }
+    await transaction.execute(`
+      UPDATE study_timer_sessions
+      SET study_session_id = (
+        SELECT id FROM study_sessions WHERE timer_session_id = study_timer_sessions.id
+      )
+    `)
 
     for (const statement of triggerStatements) await transaction.execute(statement)
     const verifiedCounts = await verifyCounts(transaction, sourceCounts)

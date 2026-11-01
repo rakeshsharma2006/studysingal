@@ -4,19 +4,19 @@ const { createApp } = require('../app')
 const { createDatabase } = require('../database')
 const { createDemoData, resetDemoData } = require('../scripts/demoData')
 const {
-  getCurrentStreak,
   isHabitScheduled,
   getDashboardData,
 } = require('../services/dashboard/dashboardService')
+const { calculateHabitStreaks } = require('../services/habitStreaks')
 
 test('dashboard helpers keep calendar dates and habit schedules consistent', () => {
   assert.equal(isHabitScheduled('DAILY', '2026-11-01'), true)
   assert.equal(isHabitScheduled('WEEKDAYS', '2026-11-01'), false)
   assert.equal(isHabitScheduled('WEEKDAYS', '2026-11-02'), true)
   assert.equal(isHabitScheduled('WEEKLY', '2026-11-01'), false)
-  assert.equal(getCurrentStreak(['2026-10-30', '2026-10-31', '2026-11-01'], '2026-11-01'), 3)
-  assert.equal(getCurrentStreak(['2026-10-30'], '2026-11-01'), 0)
-  assert.equal(getCurrentStreak(['2026-10-31'], '2026-11-01'), 1)
+  assert.equal(calculateHabitStreaks(['2026-10-30', '2026-10-31', '2026-11-01'], 'DAILY', '2026-11-01').current_streak, 3)
+  assert.equal(calculateHabitStreaks(['2026-10-30'], 'DAILY', '2026-11-01').current_streak, 0)
+  assert.equal(calculateHabitStreaks(['2026-10-31'], 'DAILY', '2026-11-01').current_streak, 1)
 })
 
 test('dashboard API returns real empty states and database-derived academic summaries', async (context) => {
@@ -89,7 +89,7 @@ test('dashboard API returns real empty states and database-derived academic summ
   assert.equal(data.overview.knowledge.average_evidence_score, 80)
   assert.equal(data.overview.knowledge.verified_topics, 1)
   assert.equal(data.overview.habits.consistency_percent, 38)
-  assert.equal(data.habits.current_streak, 1)
+  assert.equal(data.habits.active_streak_count, 2)
   assert.equal(data.habits.today.length, 2)
   assert.equal(data.habits.weekly_completion_percent, 38)
   assert.equal(data.today.planned_minutes, 70)

@@ -72,6 +72,8 @@ test('debt includes overdue and skipped study tasks, caps days, and ignores comp
       { id: 2, topic_id: 2, plan_date: '2026-10-20', priority: 'LOW', status: 'PLANNED' },
       { id: 3, topic_id: 3, plan_date: '2026-10-30', priority: 'MEDIUM', status: 'COMPLETED' },
       { id: 4, topic_id: 4, plan_date: '2026-10-31', priority: 'MEDIUM', status: 'SKIPPED' },
+      { id: 7, topic_id: 7, plan_date: '2026-11-01', priority: 'HIGH', status: 'SKIPPED' },
+      { id: 8, topic_id: 8, plan_date: '2026-11-02', priority: 'HIGH', status: 'SKIPPED' },
     ],
     revisionTasks: [
       { id: 5, topic_id: 5, due_date: '2026-10-30', status: 'PENDING' },
@@ -83,6 +85,10 @@ test('debt includes overdue and skipped study tasks, caps days, and ignores comp
   assert.equal(report.skipped_task_count, 1)
   assert.equal(report.overdue_revision_count, 1)
   assert.equal(report.oldest_overdue_task.due_date, '2026-10-20')
+  assert.equal(report.breakdown.find((item) => item.id === 7).overdue_days, 0)
+  assert.equal(report.breakdown.find((item) => item.id === 7).debt_points, 0)
+  assert.equal(report.breakdown.find((item) => item.id === 8).overdue_days, 0)
+  assert.equal(report.breakdown.find((item) => item.id === 8).debt_points, 0)
   assert.match(report.disclaimer, /organizational indicator/)
 })
 

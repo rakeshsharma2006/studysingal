@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, Archive, BookOpen, Check, Clock3, Flame, Play, Plus, Square, Target, Pause } from 'lucide-react'
 import { Button, Card, Input, ProgressBar } from '../components/ui'
 import { create, get, remove, update } from '../lib/api'
@@ -146,14 +146,19 @@ function SubjectCard({ subject, run, saving }) {
   const percent = total ? Math.round((subject.completedTopics / total) * 100) : 0
   async function addUnit(event) {
     event.preventDefault()
-    const success = await run(() => create('/units', { subject_id: subject.id, title: unitTitle, position: subject.units.length }), 'Unit added.')
+    const position = Math.max(-1, ...subject.units.map((unit) => unit.position)) + 1
+    const success = await run(() => create('/units', { subject_id: subject.id, title: unitTitle, position }), 'Unit added.')
     if (success) setUnitTitle('')
+  }
+  async function deleteSubject() {
+    if (!window.confirm(`Delete "${subject.name}"? This is only allowed when the subject has no units or recorded history.`)) return
+    await run(() => remove(`/subjects/${subject.id}`), 'Subject deleted.')
   }
 
   return (
     <Card className="subject-card">
       <div className="subject-card-top">
-        <div className="subject-heading"><div className="subject-avatar"><BookOpen size={18} /></div><div><h2>{subject.name}</h2><span>{subject.semester}{subject.exam_date ? ` · Exam ${subject.exam_date}` : ''}</span></div></div>
+        <div className="subject-heading"><div className="subject-avatar"><BookOpen size={18} /></div><div><h2>{subject.name}</h2><span>{subject.semester}{subject.exam_date ? ` · Exam ${subject.exam_date}` : ''}</span></div><button className="quiet-action quiet-danger" onClick={deleteSubject} disabled={saving}>Delete subject</button></div>
         <div className="subject-progress-summary"><strong>{subject.completedTopics}/{total}</strong><span>topics complete</span></div>
       </div>
       <ProgressBar value={percent} className="subject-progress" aria-label={`${subject.name} syllabus progress`} />
@@ -180,14 +185,28 @@ function SubjectEdit({ subject, run, saving }) {
 
 function UnitCard({ unit, run, saving }) {
   const [topicTitle, setTopicTitle] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(unit.title)
   async function addTopic(event) {
     event.preventDefault()
     const success = await run(() => create('/topics', { unit_id: unit.id, title: topicTitle }), 'Topic added.')
     if (success) setTopicTitle('')
   }
+  async function saveUnit(event) {
+    event.preventDefault()
+    if (title.trim() === unit.title) { setEditing(false); return }
+    const saved = await run(() => update(`/units/${unit.id}`, { title }), 'Unit updated.')
+    if (saved) setEditing(false)
+  }
+  async function deleteUnit() {
+    if (!window.confirm(`Delete "${unit.title}"? This is only allowed when it contains no topics or recorded history.`)) return
+    await run(() => remove(`/units/${unit.id}`), 'Unit deleted.')
+  }
   return (
     <div className="unit-card">
-      <div className="unit-heading"><strong>{unit.title}</strong><span>{unit.topics.length} {unit.topics.length === 1 ? 'topic' : 'topics'}</span></div>
+      <div className="unit-heading">{editing
+        ? <form className="topic-title-edit" onSubmit={saveUnit}><Input required maxLength={150} aria-label={`Unit title for ${unit.title}`} value={title} onChange={(event) => setTitle(event.target.value)} /><Button variant="secondary" type="submit" disabled={saving}>Save</Button><button className="quiet-action" type="button" onClick={() => { setTitle(unit.title); setEditing(false) }}>Cancel</button></form>
+        : <><strong>{unit.title}</strong><span>{unit.topics.length} {unit.topics.length === 1 ? 'topic' : 'topics'}</span><button className="quiet-action" onClick={() => setEditing(true)} disabled={saving}>Edit</button><button className="quiet-action quiet-danger" onClick={deleteUnit} disabled={saving}>Delete</button></>}</div>
       {!unit.topics.length ? <p className="unit-empty">Add a topic to start tracking this unit.</p> : (
         <div className="topic-list">{unit.topics.map((topic) => <TopicRow topic={topic} key={topic.id} run={run} saving={saving} />)}</div>
       )}
@@ -199,22 +218,26 @@ function UnitCard({ unit, run, saving }) {
 function TopicRow({ topic, run, saving }) {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(topic.title)
+  const [estimatedMinutes, setEstimatedMinutes] = useState(topic.estimated_minutes)
   async function deleteTopic() {
     if (!window.confirm(`Delete “${topic.title}”? A topic with study history cannot be deleted.`)) return
     await run(() => remove(`/topics/${topic.id}`), 'Topic deleted.')
   }
   async function saveTitle(event) {
     event.preventDefault()
-    if (title.trim() === topic.title) { setEditing(false); return }
-    const saved = await run(() => update(`/topics/${topic.id}`, { title }), 'Topic updated.')
+    if (title.trim() === topic.title && Number(estimatedMinutes) === topic.estimated_minutes) { setEditing(false); return }
+    const saved = await run(() => update(`/topics/${topic.id}`, {
+      title,
+      estimated_minutes: Number(estimatedMinutes),
+    }), 'Topic updated.')
     if (saved) setEditing(false)
   }
   return (
     <div className="topic-row">
       <span className={`topic-status-indicator status-${topic.status.toLowerCase()}`} />
       <div className="topic-row-main">
-        {editing ? <form className="topic-title-edit" onSubmit={saveTitle}><Input required value={title} onChange={(event) => setTitle(event.target.value)} /><Button variant="secondary" type="submit" disabled={saving}>Save</Button></form> : <strong>{topic.title}</strong>}
-        <span>{topic.estimated_minutes} min estimate</span>
+        {editing ? <form className="topic-title-edit" onSubmit={saveTitle}><Input required maxLength={180} aria-label={`Topic title for ${topic.title}`} value={title} onChange={(event) => setTitle(event.target.value)} /><Input required type="number" min="1" max="1440" aria-label={`Estimated minutes for ${topic.title}`} value={estimatedMinutes} onChange={(event) => setEstimatedMinutes(event.target.value)} /><Button variant="secondary" type="submit" disabled={saving}>Save</Button></form> : <strong>{topic.title}</strong>}
+        {!editing && <span>{topic.estimated_minutes} min estimate</span>}
       </div>
       <select aria-label={`Status for ${topic.title}`} value={topic.status} onChange={(event) => run(() => update(`/topics/${topic.id}`, { status: event.target.value }), 'Topic status updated.')} disabled={saving}>
         {topicStatuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}
@@ -277,7 +300,7 @@ export function HabitsPage() {
           const habitHistory = data.history[habit.id]
           return (
             <Card className={`habit-entry ${habit.is_active ? '' : 'habit-archived'}`} key={habit.id}>
-              <div className="habit-entry-heading"><div className="habit-entry-icon"><Flame size={18} /></div><div className="habit-entry-name"><h2>{habit.name}</h2><span>{habit.frequency.toLowerCase()} · {habit.is_active ? 'Active' : 'Archived'}</span></div><div className="habit-streak-stats"><span><strong>{habitHistory.current_streak}</strong> current</span><span><strong>{habitHistory.longest_streak}</strong> best</span></div></div>
+              <div className="habit-entry-heading"><div className="habit-entry-icon"><Flame size={18} /></div><div className="habit-entry-name"><h2>{habit.name}</h2><span>{habit.frequency.toLowerCase()} · {habit.is_active ? 'Active' : 'Archived'}</span></div><div className="habit-streak-stats"><span><strong>{habitHistory.current_streak}</strong> current {habitHistory.streak_unit}</span><span><strong>{habitHistory.longest_streak}</strong> best {habitHistory.streak_unit}</span></div></div>
               <div className="habit-entry-bottom"><div className="habit-week-history">{Array.from({ length: 7 }, (_, index) => {
                 const date = dateOffset(index - 6)
                 const completed = data.logs.some((log) => log.habit_id === habit.id && log.log_date === date && log.completed)
@@ -299,60 +322,89 @@ export function StudySessionsPage() {
   const { data, loading, error, refresh } = useRemoteState(loader)
   const { saving, notice, error: mutationError, run } = useMutation(refresh)
   const [topicId, setTopicId] = useState('')
-  const [timerStatus, setTimerStatus] = useState('idle')
-  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [timer, setTimer] = useState(null)
+  const [timerNow, setTimerNow] = useState(0)
+  const [timerLoading, setTimerLoading] = useState(true)
+  const [timerSaving, setTimerSaving] = useState(false)
+  const [timerError, setTimerError] = useState('')
   const [manualDate, setManualDate] = useState(localDate())
   const [manualTime, setManualTime] = useState('09:00')
   const [manualMinutes, setManualMinutes] = useState(30)
-  const segmentStartedAt = useRef(0)
-  const sessionStartedAt = useRef('')
-  const elapsedBeforePause = useRef(0)
 
   useEffect(() => {
-    if (timerStatus !== 'running') return undefined
-    const timer = window.setInterval(() => {
-      setElapsedSeconds(elapsedBeforePause.current + Math.floor((Date.now() - segmentStartedAt.current) / 1000))
-    }, 250)
-    return () => window.clearInterval(timer)
-  }, [timerStatus])
+    let active = true
+    get('/study-sessions/timer/current').then((current) => {
+      if (!active) return
+      setTimer(current)
+      if (current) setTopicId(String(current.topic_id))
+    }).catch((requestError) => {
+      if (active) setTimerError(requestError.message)
+    }).finally(() => {
+      if (active) setTimerLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (timer?.status !== 'RUNNING') return undefined
+    const interval = window.setInterval(() => setTimerNow(Date.now()), 250)
+    return () => window.clearInterval(interval)
+  }, [timer?.status])
 
   const selectedTopic = useMemo(() => data?.topics.find((topic) => String(topic.id) === String(topicId)), [data?.topics, topicId])
-  function startTimer() {
-    if (!topicId) return
-    const now = new Date()
-    if (timerStatus === 'idle') {
-      sessionStartedAt.current = now.toISOString()
-      elapsedBeforePause.current = 0
+  const timerStatus = timer?.status || 'IDLE'
+  const elapsedSeconds = timer
+    ? timer.elapsed_seconds + (timer.status === 'RUNNING' && timer.segment_started_at
+      ? Math.max(0, Math.floor((timerNow - Date.parse(timer.segment_started_at)) / 1000))
+      : 0)
+    : 0
+
+  async function timerAction(path, body = {}) {
+    setTimerSaving(true)
+    setTimerError('')
+    try {
+      const result = await create(path, body)
+      setTimer(result)
+      setTopicId(String(result.topic_id))
+      setTimerNow(Date.now())
+      return result
+    } catch (requestError) {
+      setTimerError(requestError.message)
+      return null
+    } finally {
+      setTimerSaving(false)
     }
-    segmentStartedAt.current = Date.now()
-    setTimerStatus('running')
   }
-  function pauseTimer() {
-    elapsedBeforePause.current += Math.floor((Date.now() - segmentStartedAt.current) / 1000)
-    setElapsedSeconds(elapsedBeforePause.current)
-    setTimerStatus('paused')
-  }
-  async function endTimer() {
-    const seconds = timerStatus === 'running'
-      ? elapsedBeforePause.current + Math.floor((Date.now() - segmentStartedAt.current) / 1000)
-      : elapsedBeforePause.current
-    if (seconds < 1) return
-    const started = new Date(sessionStartedAt.current)
-    const ended = new Date()
-    const success = await run(() => create('/study-sessions', {
+
+  async function startTimer() {
+    if (!topicId || timerLoading || timer) return
+    await timerAction('/study-sessions/timer/start', {
       topic_id: Number(topicId),
-      started_at: started.toISOString(),
-      ended_at: ended.toISOString(),
-      duration_minutes: Math.max(1, Math.round(seconds / 60)),
-      session_date: localDate(started),
-    }), 'Study session saved.')
-    if (success) resetTimer()
+      session_date: localDate(),
+    })
   }
-  function resetTimer() {
-    setTimerStatus('idle')
-    setElapsedSeconds(0)
-    elapsedBeforePause.current = 0
-    sessionStartedAt.current = ''
+
+  async function pauseTimer() {
+    if (timer) await timerAction(`/study-sessions/timer/${timer.id}/pause`)
+  }
+
+  async function resumeTimer() {
+    if (timer) await timerAction(`/study-sessions/timer/${timer.id}/resume`)
+  }
+
+  async function endTimer() {
+    if (!timer) return
+    const completed = await timerAction(`/study-sessions/timer/${timer.id}/complete`)
+    if (completed) {
+      setTimer(null)
+      await refresh()
+    }
+  }
+
+  async function discardTimer() {
+    if (!timer || !window.confirm('Discard this timer? No study session record will be created.')) return
+    const discarded = await timerAction(`/study-sessions/timer/${timer.id}/discard`)
+    if (discarded) setTimer(null)
   }
   async function addManualSession(event) {
     event.preventDefault()
@@ -375,13 +427,20 @@ export function StudySessionsPage() {
       <PageFeedback loading={loading} error={error} onDismiss={refresh} />
       {!loading && !error && <>
         {(notice || mutationError) && <div className={mutationError ? 'feature-error feature-inline-error' : 'feature-success'} role={mutationError ? 'alert' : 'status'}>{notice || mutationError}</div>}
+        {timerError && <Card className="feature-error feature-inline-error" role="alert">{timerError}<button className="text-link" onClick={() => setTimerError('')}>Dismiss</button></Card>}
+        {timer?.stale && <Card className="feature-error feature-inline-error" role="alert">This timer has exceeded the 24-hour session limit. Discard it and start a new session to avoid recording an incorrect duration.</Card>}
         {!data.topics.length ? <EmptyState title="Add a topic to get started" detail="Create a syllabus subject, unit, and topic before recording a study session." /> : <>
           <div className="session-layout">
             <Card className="timer-card"><div className="feature-card-heading"><div><h2>Focus timer</h2><p>Pick a topic, then start when you’re ready.</p></div><div className="timer-heading-icon"><Clock3 size={18} /></div></div>
-              <label className="field-label">Study topic<select value={topicId} onChange={(event) => setTopicId(event.target.value)} disabled={timerStatus !== 'idle'}><option value="">Select a topic</option>{data.topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>
+              <label className="field-label">Study topic<select value={topicId} onChange={(event) => setTopicId(event.target.value)} disabled={timerStatus !== 'IDLE' || timerLoading}><option value="">Select a topic</option>{data.topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>
               <div className="timer-display" aria-live="polite">{formattedTime}</div>
               <div className="timer-topic-label">{selectedTopic?.title || 'Your focus time starts here'}</div>
-              <div className="timer-controls">{timerStatus === 'running' ? <Button variant="secondary" icon={Pause} onClick={pauseTimer}>Pause</Button> : <Button icon={timerStatus === 'paused' ? Play : Play} onClick={startTimer} disabled={!topicId}>{timerStatus === 'paused' ? 'Resume' : 'Start session'}</Button>}{timerStatus !== 'idle' && <Button variant="secondary" icon={Square} onClick={endTimer} disabled={saving || elapsedSeconds < 1}>{saving ? 'Saving…' : 'End & save'}</Button>}{timerStatus !== 'idle' && <button className="quiet-action" onClick={resetTimer}>Discard</button>}</div>
+              {timerLoading ? <span className="history-loading">Restoring saved timer…</span> : <div className="timer-controls">{timerStatus === 'RUNNING'
+                ? <Button variant="secondary" icon={Pause} onClick={pauseTimer} disabled={timerSaving}>Pause</Button>
+                : timerStatus === 'PAUSED'
+                  ? <Button icon={Play} onClick={resumeTimer} disabled={timerSaving || timer.stale}>Resume</Button>
+                  : <Button icon={Play} onClick={startTimer} disabled={!topicId || timerSaving}>Start session</Button>}
+              {timer && <><Button variant="secondary" icon={Square} onClick={endTimer} disabled={timerSaving || elapsedSeconds < 1 || timer.stale}>{timerSaving ? 'Saving…' : 'End & save'}</Button><button className="quiet-action" onClick={discardTimer} disabled={timerSaving}>Discard</button></>}</div>}
               <p className="timer-note">Pausing keeps the active study duration accurate. Saving a session does not complete its topic.</p>
             </Card>
             <Card className="manual-session-card"><div className="feature-card-heading"><div><h2>Add a past session</h2><p>Log study time you completed offline.</p></div><Activity size={18} className="muted-purple-icon" /></div>

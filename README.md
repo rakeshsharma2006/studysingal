@@ -71,13 +71,13 @@ The API tests create and clean up temporary SQLite and in-memory libSQL database
 ## Implemented frontend flows
 
 - **Syllabus:** create and edit subjects, set semester and exam date, add units and topics, update topic status/priority, edit topic titles, confirm topic deletion, and view topic-count completion progress.
-- **Habits:** create and edit habits, archive/restore them, complete or undo today's local-date log, review a seven-day history, and view current/best streaks. Habit actions do not change topic status.
+- **Habits:** create and edit habits, archive/restore them, complete or undo today's local-date log, review a seven-day history, and view frequency-aware current/best streaks. Daily streaks count consecutive calendar days, weekday streaks skip weekends, and weekly streaks count consecutive Monday-Sunday weeks with at least one check-in. Habit actions do not change topic status.
 - **Study sessions:** select a topic, start/pause/resume/end a focus timer, manually log previous study time, view session history, and see subject study-time totals. A session never completes its topic.
 - **Study plan:** schedule time for a topic and mark planned tasks completed or skipped. Plan actions do not update topic status.
 - **Knowledge analysis:** append assessments, compare prior attempts, update confidence, and schedule or complete revisions.
 - **Analytics:** review separate planned-time/task drift, transparent academic-debt points, evidence gaps, and cautious habit comparisons.
 - **Recovery planner:** review ranked, explainable next-study recommendations generated from syllabus, exam, assessment, and revision records.
-- **Exam forecast:** compare a 14-day completion pace with upcoming exam dates and explore target-rate scenarios.
+- **Exam forecast:** compare the distinct topics with completion events in the last 14 calendar days against upcoming exam dates and explore target-rate scenarios. Repeated completion events for one topic count once in the rate.
 - **Dashboard:** the overview, signals, habits, plans, charts, recommendations, and forecasts are fetched from `GET /api/dashboard`; cards show empty or unavailable states when records do not exist. No dashboard KPI or chart series uses hardcoded academic activity.
 
 The top navigation search looks up subjects, topics, and habits from the API. Profile customization and notification delivery are not implemented.
@@ -105,7 +105,7 @@ Analytics are independent calculation services: drift keeps time and task counts
 
 The Recovery page ranks study actions using exam urgency (30%), knowledge weakness (30%), syllabus incompletion (25%), and revision delay (15%). Missing factors are excluded and available weights are renormalized. Unassessed topics are offered an assessment rather than treated as weak; completed topics appear only for a scored knowledge gap or a due revision. The recommendation engine does not update topic status.
 
-The Exam Forecast page estimates completion using topic completion events from the inclusive last 14 calendar days, divided by 14. It rounds required days upward, reports insufficient data instead of inventing a baseline rate, and provides independent what-if scenarios. Session activity is contextual only. Forecasts are not exam-mark predictions or guarantees. Migration `003_topic_completion_history.sql` backfills currently completed topics and records future completion transitions; earlier completion events that were never recorded cannot be reconstructed. If a topic with completion history is deleted, its history row is retained with a null topic reference.
+The Exam Forecast page estimates completion using distinct topics with completion events from the inclusive last 14 calendar days, divided by 14. It rounds required days upward, reports insufficient data instead of inventing a baseline rate, and provides independent what-if scenarios. Session activity is contextual only. Forecasts are not exam-mark predictions or guarantees. Migration `003_topic_completion_history.sql` backfills currently completed topics and records future completion transitions; earlier completion events that were never recorded cannot be reconstructed. If a topic with completion history is deleted, its history row is retained with a null topic reference.
 
 The dashboard derives its current academic overview and daily/weekly summaries from the same API-backed records. Weekly habit consistency counts each active habit according to its configured frequency; a weekly-frequency habit is one expected check-in per calendar week. Study duration, counts, and assessment evidence remain separate units. Assessment trends include only attempts with a valid evidence score.
 

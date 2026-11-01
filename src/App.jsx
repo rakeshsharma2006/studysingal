@@ -278,8 +278,21 @@ function App() {
         </div>
       </Modal>
       <Modal open={showHelp} onClose={() => setShowHelp(false)} title="StudySignal help">
-        <p className="modal-description">Manage syllabus topics, habits, study sessions, assessments, plans, and transparent academic summaries from the workspace. Authentication and profile customization are not part of this single-user MVP.</p>
-        <Button variant="secondary" onClick={() => setShowHelp(false)}>Got it</Button>
+        <div className="help-center-content">
+          <p className="modal-description">A practical guide to the records and transparent calculations available in this single-user MVP.</p>
+          <HelpSection title="Getting started">Create a subject, add its units and topics in Syllabus, then add habits or schedule study tasks. Dashboard summaries appear as you record activity.</HelpSection>
+          <HelpSection title="Subjects, units, and topics">Subjects may have an optional exam date. Add units and topics underneath them. Topic status is independent of habit check-ins, study sessions, and assessment results.</HelpSection>
+          <HelpSection title="Habits and daily logs">Choose a habit frequency and mark today complete or undo it. Daily streaks count consecutive calendar days, weekday streaks skip weekends, and weekly streaks count consecutive Monday–Sunday weeks with at least one check-in. An unfinished current week remains active until Sunday ends. The dashboard count shows how many habits currently have an active streak.</HelpSection>
+          <HelpSection title="Study timer">Choose a topic, start, pause, or resume the timer. Active timer state is saved by the backend and restored when you return. Ending saves recorded study time; discarding does not create a study session. A session never completes its topic.</HelpSection>
+          <HelpSection title="Knowledge assessments">Record optional quiz and recall scores (0–100) and confidence (1–5, mapped to 20–100%). Assessment attempts are retained as history; an update is recorded as a new attempt. Confidence alone is not enough to produce a verified evidence score.</HelpSection>
+          <HelpSection title="Evidence score">When quiz (Q), recall (R), and confidence percentage (C) exist, E = 0.60Q + 0.25R + 0.15C. Missing components are removed and remaining weights are renormalized. Without quiz or recall evidence, the topic is UNVERIFIED. These scores are not validated measures of intelligence or mastery.</HelpSection>
+          <HelpSection title="Academic Drift">Time drift = max(0, (planned minutes − actual minutes) / planned minutes) × 100. Task drift uses planned and completed task counts separately. A zero plan yields an unavailable (null) percentage.</HelpSection>
+          <HelpSection title="Academic Debt">Overdue study plans use priority weight (Low 1, Medium 2, High 3) multiplied by overdue days capped at seven. Overdue revisions use two points per overdue day, capped at seven. Skipped plans are shown separately in debt. This is an organizational indicator, not a judgment about you.</HelpSection>
+          <HelpSection title="Knowledge Gaps">Knowledge analysis highlights weak or declining recorded assessment evidence, unverified topics, and pending revisions. Missing assessment data is not treated as failure. Classification thresholds are configurable on the backend.</HelpSection>
+          <HelpSection title="Recovery recommendations">Recommendations rank topic actions using exam urgency (30%), knowledge weakness (30%), syllabus incompletion (25%), and revision delay (15%). Missing factors are excluded and remaining weights renormalized. Recommendations do not change topic status.</HelpSection>
+          <HelpSection title="Exam Forecast">The baseline counts distinct topics with completion events in the last 14 calendar days and divides by 14. It estimates remaining completion time and compares it with an exam date. What-if rates assume a steady pace; forecasts do not guarantee completion or predict exam marks.</HelpSection>
+          <HelpSection title="Data and limitations">StudySignal is a single-user MVP. Local development uses SQLite; the production adapter supports Turso when configured. Accounts, authentication, user profile management, and cross-user synchronization are not provided. Results depend on accurate and complete records.</HelpSection>
+        </div>
       </Modal>
     </div>
   )
@@ -289,14 +302,22 @@ function SettingsPage() {
   return (
     <section className="academic-page">
       <div className="page-heading academic-page-heading">
-        <div><div className="eyebrow"><span className="eyebrow-dot" /> STUDYSIGNAL WORKSPACE</div><h1><Settings size={23} /> Settings</h1><p>Personalization controls are not available in this single-user MVP.</p></div>
+        <div><div className="eyebrow"><span className="eyebrow-dot" /> STUDYSIGNAL WORKSPACE</div><h1><Settings size={23} /> Settings</h1><p>Storage and account information for this single-user MVP.</p></div>
       </div>
       <Card className="settings-notice">
         <ShieldCheck size={19} />
-        <div><strong>Study records are stored locally</strong><p>StudySignal does not include user accounts, cloud synchronization, notification delivery, or profile customization yet. Your academic records remain in the configured SQLite database.</p></div>
+        <div><strong>Storage depends on the environment</strong><p>Local development uses a SQLite database through better-sqlite3. The production backend is designed to use Turso through the libSQL adapter when the deployment is configured with Turso credentials. This page does not expose credentials or deployment settings.</p></div>
+      </Card>
+      <Card className="settings-notice">
+        <Settings size={19} />
+        <div><strong>Single-user MVP</strong><p>StudySignal currently has no authentication, user accounts, profile customization, or cross-user cloud synchronization. No additional user-adjustable preferences are implemented here.</p></div>
       </Card>
     </section>
   )
+}
+
+function HelpSection({ title, children }) {
+  return <section className="help-section"><h3>{title}</h3><p>{children}</p></section>
 }
 
 function NotFoundPage({ onNavigate }) {

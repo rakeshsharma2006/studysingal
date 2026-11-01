@@ -60,6 +60,8 @@ test('recommendations distinguish unverified, weak, completed, and revision-due 
   assert.equal(recommendations.recommendations[1].action, 'REVISE_TOPIC')
   assert.equal(recommendations.recommendations[2].action, 'PRACTICE_QUESTIONS')
   assert.equal(recommendations.recommendations[0].estimated_minutes, 25)
+  assert.match(recommendations.recommendations[2].reason, /40%/)
+  assert.doesNotMatch(recommendations.recommendations[2].reason, /needs reinforcement/)
 })
 
 test('recommendation ties sort deterministically by topic priority then title', () => {
@@ -171,7 +173,8 @@ test('forecast counts only completion dates in the inclusive 14-day window', () 
     topics,
     completionHistory: [
       { topic_id: 1, completed_at: '2026-11-02' },
-      { topic_id: 1, completed_at: '2026-11-01' },
+      { topic_id: 1, completed_at: '2026-11-03' },
+      { topic_id: 2, completed_at: '2026-11-04' },
     ],
     today: '2026-11-15',
     scenarios: [],
@@ -181,6 +184,22 @@ test('forecast counts only completion dates in the inclusive 14-day window', () 
   assert.equal(forecast.estimated_completion_days, 14)
   assert.equal(forecast.scenarios[0].estimated_completion_days, 14)
   assert.equal(forecast.status, 'INSUFFICIENT_DATA')
+})
+
+test('recovery explanation does not imply strong evidence needs reinforcement', () => {
+  const result = buildRecommendations({
+    today: '2026-11-15',
+    topics: [{
+      id: 1,
+      title: 'Strong but in progress',
+      subject_id: 1,
+      subject_name: 'Biology',
+      status: 'IN_PROGRESS',
+      latest_assessment: { evidence_score: 90 },
+    }],
+  }).recommendations[0]
+  assert.match(result.reason, /90%/)
+  assert.doesNotMatch(result.reason, /needs reinforcement/)
 })
 
 test('recovery and forecast APIs validate queries and retain completion history after topic deletion', async (context) => {

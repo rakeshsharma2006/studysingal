@@ -20,6 +20,12 @@ function createTursoAdapter(client) {
     async exec(sql) {
       await client.execute(sql)
     },
+    async batch(statements) {
+      return client.batch(statements.map(({ sql, args = [] }) => ({
+        sql,
+        args: Array.isArray(args) ? args : [args],
+      })), 'write')
+    },
     prepare(sql) {
       return {
         async all(...args) {

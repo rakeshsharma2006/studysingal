@@ -147,6 +147,10 @@ test('SQLite-to-libSQL migration preserves history and verifies all tables witho
     VALUES (?, ?, ?, ?)
   `).run(topicId, 88, 76, '2026-10-30T11:00:00.000Z')
   source.prepare('INSERT INTO revision_tasks (topic_id, due_date) VALUES (?, ?)').run(topicId, '2026-11-02')
+  source.prepare(`
+    INSERT INTO study_timer_sessions (topic_id, status, started_at, segment_started_at, elapsed_seconds, session_date)
+    VALUES (?, 'PAUSED', ?, NULL, 120, ?)
+  `).run(topicId, '2026-10-30T12:00:00.000Z', '2026-10-30')
   source.close()
 
   const targetClient = createClient({ url: ':memory:' })

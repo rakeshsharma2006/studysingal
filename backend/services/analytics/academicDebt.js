@@ -7,7 +7,7 @@ function calendarDaysBetween(from, to) {
 }
 
 function calculateStudyTaskDebt(task, today) {
-  const overdueDays = Math.min(7, Math.max(1, calendarDaysBetween(task.plan_date, today)))
+  const overdueDays = Math.min(7, Math.max(0, calendarDaysBetween(task.plan_date, today)))
   return PRIORITY_WEIGHTS[task.priority] * overdueDays
 }
 
@@ -27,7 +27,7 @@ function calculateAcademicDebt({ studyTasks = [], revisionTasks = [], today = to
     topic_id: task.topic_id,
     due_date: task.plan_date,
     priority: task.priority,
-    overdue_days: Math.min(7, Math.max(1, calendarDaysBetween(task.plan_date, today))),
+    overdue_days: Math.min(7, Math.max(0, calendarDaysBetween(task.plan_date, today))),
     debt_points: calculateStudyTaskDebt(task, today),
   }))
   const revisionBreakdown = overdueRevisions.map((task) => ({

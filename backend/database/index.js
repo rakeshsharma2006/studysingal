@@ -17,6 +17,9 @@ function createDatabase(filename = process.env.DATABASE_PATH || path.join(__dirn
     db.pragma('journal_mode = WAL')
     db.pragma('busy_timeout = 5000')
     migrate(db)
+    db.batch = (statements) => db.transaction(() => statements.map(({ sql, args = [] }) => (
+      db.prepare(sql).run(...(Array.isArray(args) ? args : [args]))
+    )))()
     return db
   } catch (error) {
     if (db?.open) db.close()

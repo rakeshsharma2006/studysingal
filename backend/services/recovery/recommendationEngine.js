@@ -73,7 +73,7 @@ function recommendationReason(topic, factors, action, revisionTask) {
     reasons.push(`The exam is ${days} day${days === 1 ? '' : 's'} away (urgency ${factors.exam_urgency}/100).`)
   }
   if (factors.knowledge_weakness != null) {
-    reasons.push(`The latest evidence score is ${100 - factors.knowledge_weakness}%, so topic knowledge needs reinforcement.`)
+    reasons.push(`The latest evidence score is ${100 - factors.knowledge_weakness}%; its knowledge-weakness priority contribution is ${factors.knowledge_weakness}/100.`)
   } else if (action === 'TAKE_KNOWLEDGE_ASSESSMENT') {
     reasons.push('There is no scored assessment yet, so understanding is unverified rather than assumed weak.')
   }

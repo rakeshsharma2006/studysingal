@@ -150,7 +150,7 @@ export function DashboardPage({ onQuickAdd }) {
             <Card className="dashboard-panel dashboard-habit-panel">
               <PanelHeading icon={Flame} title="Habit activity" subtitle="Today's routines and the last 14 days" link="/habits" linkLabel="Manage habits" />
               <div className="habit-summary-strip">
-                <div><Flame size={15} /><strong>{data.habits.current_streak}</strong><span>day streak</span></div>
+                <div><Flame size={15} /><strong>{data.habits.active_streak_count}</strong><span>active streaks</span></div>
                 <div><strong>{data.habits.weekly_completion_percent == null ? '—' : `${data.habits.weekly_completion_percent}%`}</strong><span>weekly check-ins</span></div>
               </div>
               {data.habits.today.length ? <div className="dashboard-today-habits">{data.habits.today.slice(0, 5).map((habit) => (

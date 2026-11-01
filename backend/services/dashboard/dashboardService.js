@@ -5,6 +5,7 @@ const { getKnowledgeAnalysis } = require('../analytics/knowledgeGap')
 const { calculateEvidenceScore } = require('../analytics/knowledgeConfidence')
 const { getRecommendations } = require('../recovery/recommendationEngine')
 const { getExamForecast, addCalendarDays } = require('../forecast/examForecast')
+const { calculateHabitStreaks } = require('../habitStreaks')
 
 function listCalendarDays(from, to) {
   const dates = []
@@ -16,18 +17,6 @@ function isHabitScheduled(frequency, date) {
   const day = new Date(`${date}T00:00:00.000Z`).getUTCDay()
   if (frequency === 'WEEKDAYS') return day >= 1 && day <= 5
   return frequency === 'DAILY'
-}
-
-function getCurrentStreak(dates, today) {
-  const completed = new Set(dates)
-  let date = completed.has(today) ? today : addCalendarDays(today, -1)
-  if (!completed.has(date)) return 0
-  let streak = 0
-  while (completed.has(date)) {
-    streak += 1
-    date = addCalendarDays(date, -1)
-  }
-  return streak
 }
 
 async function getDashboardData(db, today = todayLocal()) {
@@ -81,9 +70,23 @@ async function getDashboardData(db, today = todayLocal()) {
       if (logByHabitDate.get(`${habit.id}:${date}`)) weeklyCompleted += 1
     }
   }
-  const completedActivityDates = (await db.prepare(`
-    SELECT DISTINCT log_date FROM habit_logs WHERE completed = 1 ORDER BY log_date
-  `).all()).map((row) => row.log_date)
+  const historicalHabitLogs = await db.prepare(`
+    SELECT hl.habit_id, hl.log_date
+    FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id
+    WHERE h.is_active = 1 AND hl.completed = 1
+    ORDER BY hl.habit_id, hl.log_date
+  `).all()
+  const logsByHabit = new Map()
+  for (const log of historicalHabitLogs) {
+    const dates = logsByHabit.get(log.habit_id) || []
+    dates.push(log.log_date)
+    logsByHabit.set(log.habit_id, dates)
+  }
+  const currentHabitStreaks = activeHabits.map((habit) => calculateHabitStreaks(
+    logsByHabit.get(habit.id) || [],
+    habit.frequency,
+    today,
+  ))
   const todayHabits = activeHabits.map((habit) => ({
     ...habit,
     completed_today: Boolean(logByHabitDate.get(`${habit.id}:${today}`)),
@@ -255,7 +258,7 @@ async function getDashboardData(db, today = todayLocal()) {
       weekly_completed_check_ins: weeklyCompleted,
       weekly_expected_check_ins: weeklyExpectedLogCount,
       weekly_completion_percent: weeklyExpectedLogCount ? Math.round((weeklyCompleted / weeklyExpectedLogCount) * 100) : null,
-      current_streak: getCurrentStreak(completedActivityDates, today),
+      active_streak_count: currentHabitStreaks.filter((streak) => streak.current_streak > 0).length,
       heatmap: habitHeatmap,
     },
     analytics: {
@@ -273,4 +276,4 @@ async function getDashboardData(db, today = todayLocal()) {
   }
 }
 
-module.exports = { listCalendarDays, isHabitScheduled, getCurrentStreak, getDashboardData }
+module.exports = { listCalendarDays, isHabitScheduled, getDashboardData }

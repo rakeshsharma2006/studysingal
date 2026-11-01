@@ -28,6 +28,62 @@ test('all academic APIs validate input and preserve relational history', async (
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
+  test('syllabus CRUD edits all topic fields and preserves dependencies and recorded history', async (context) => {
+    const db = createDatabase(':memory:')
+    const server = createApp(db).listen(0)
+    await new Promise((resolve) => server.once('listening', resolve))
+    const baseUrl = `http://127.0.0.1:${server.address().port}/api`
+    context.after(async () => {
+      await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+      db.close()
+    })
+
+    async function request(url, method = 'GET', body) {
+      const response = await fetch(`${baseUrl}${url}`, {
+        method,
+        headers: body === undefined ? {} : { 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+      return { response, payload: response.status === 204 ? null : await response.json() }
+    }
+
+    const subject = await request('/subjects', 'POST', { name: 'CRUD subject', semester: 'Fall' })
+    const subjectId = subject.payload.data.id
+    assert.equal((await request(`/subjects/${subjectId}`, 'PATCH', { name: 'Edited subject' })).payload.data.name, 'Edited subject')
+    const unit = await request('/units', 'POST', { subject_id: subjectId, title: 'CRUD unit', position: 0 })
+    const unitId = unit.payload.data.id
+    assert.equal((await request(`/units/${unitId}`, 'PATCH', { title: 'Edited unit' })).payload.data.title, 'Edited unit')
+    const topic = await request('/topics', 'POST', { unit_id: unitId, title: 'CRUD topic' })
+    const topicId = topic.payload.data.id
+    const editedTopic = await request(`/topics/${topicId}`, 'PATCH', {
+      title: 'Edited topic',
+      status: 'IN_PROGRESS',
+      priority: 'HIGH',
+      estimated_minutes: 90,
+    })
+    assert.deepEqual({
+      title: editedTopic.payload.data.title,
+      status: editedTopic.payload.data.status,
+      priority: editedTopic.payload.data.priority,
+      estimated_minutes: editedTopic.payload.data.estimated_minutes,
+    }, {
+      title: 'Edited topic',
+      status: 'IN_PROGRESS',
+      priority: 'HIGH',
+      estimated_minutes: 90,
+    })
+    assert.equal((await request(`/units/${unitId}`, 'DELETE')).response.status, 409)
+    assert.equal((await request(`/subjects/${subjectId}`, 'DELETE')).response.status, 409)
+
+    const assessment = await request('/topic-assessments', 'POST', { topic_id: topicId, quiz_score: 80 })
+    assert.equal(assessment.response.status, 201)
+    assert.equal((await request(`/topics/${topicId}`, 'DELETE')).response.status, 409)
+
+    const emptyTopic = await request('/topics', 'POST', { unit_id: unitId, title: 'Safe to delete' })
+    assert.equal((await request(`/topics/${emptyTopic.payload.data.id}`, 'DELETE')).response.status, 204)
+    assert.equal((await request(`/topics/${topicId}`, 'DELETE')).response.status, 409)
+  })
+
   async function request(url, method = 'GET', body) {
     const response = await fetch(`${baseUrl}${url}`, {
       method,
@@ -134,6 +190,7 @@ test('all academic APIs validate input and preserve relational history', async (
   const history = await request(`/habits/${habitId}/history`)
   assert.equal(history.payload.data.current_streak, 1)
   assert.equal(history.payload.data.longest_streak, 1)
+  assert.equal(history.payload.data.streak_unit, 'days')
   assert.equal((await request(`/subjects/${subjectId}/units`)).payload.data.length, 1)
   const knowledge = await request('/knowledge/analysis')
   assert.equal(knowledge.payload.data.topics[0].latest_assessment.evidence_score, 57.5)
