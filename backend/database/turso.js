@@ -1,4 +1,4 @@
-const { createClient } = require('@libsql/client')
+const { createClient } = require('@libsql/client/web')
 const fs = require('node:fs')
 const path = require('node:path')
 

@@ -1,6 +1,6 @@
 require('dotenv').config()
 
-const { createClient } = require('@libsql/client')
+const { createClient } = require('@libsql/client/web')
 
 async function checkTurso() {
   const { TURSO_DATABASE_URL: url, TURSO_AUTH_TOKEN: authToken } = process.env

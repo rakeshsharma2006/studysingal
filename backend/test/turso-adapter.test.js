@@ -6,7 +6,7 @@ const { createClient } = require('@libsql/client')
 const { createApp } = require('../app')
 const { createTursoAdapter, migrateTurso, splitMigrationStatements } = require('../database/turso')
 const { createDatabase } = require('../database')
-const { migrateSqliteToTurso, TABLES } = require('../scripts/migrateSqliteToTurso')
+const { migrateSqliteToTurso, TABLES, assertTargetEmpty } = require('../scripts/migrateSqliteToTurso')
 
 test('Turso schema splitting keeps trigger bodies intact', () => {
   const directory = path.join(__dirname, '..', 'database', 'migrations')
@@ -15,6 +15,35 @@ test('Turso schema splitting keeps trigger bodies intact', () => {
   const triggers = statements.filter((statement) => /^\s*CREATE\s+TRIGGER\b/i.test(statement))
   assert.equal(triggers.length, 2)
   assert.equal(triggers.every((statement) => /INSERT INTO topic_completion_history/.test(statement)), true)
+})
+
+test('data transfer refuses a populated Turso target without deleting existing rows', async () => {
+  const client = createClient({ url: ':memory:' })
+  try {
+    await client.execute('CREATE TABLE subjects (id INTEGER PRIMARY KEY, name TEXT NOT NULL)')
+    await client.execute({ sql: 'INSERT INTO subjects (id, name) VALUES (?, ?)', args: [23, 'Existing data'] })
+    await assert.rejects(assertTargetEmpty(client), /refusing to import/)
+    const result = await client.execute('SELECT id, name FROM subjects')
+    assert.equal(result.rows[0].id, 23)
+    assert.equal(result.rows[0].name, 'Existing data')
+  } finally {
+    await client.close()
+  }
+})
+
+test('health reports database initialization failures as JSON 503 instead of success', async (context) => {
+  const unavailable = new Error('redacted underlying database failure')
+  unavailable.code = 'DATABASE_UNAVAILABLE'
+  const server = createApp(() => Promise.reject(unavailable)).listen(0)
+  await new Promise((resolve) => server.once('listening', resolve))
+  context.after(() => new Promise((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve())
+  }))
+
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/health`)
+  assert.equal(response.status, 503)
+  assert.match(response.headers.get('content-type'), /application\/json/)
+  assert.equal((await response.json()).error.code, 'DATABASE_UNAVAILABLE')
 })
 
 test('async libSQL adapter initializes schema and serves core API operations', async (context) => {
@@ -39,6 +68,18 @@ test('async libSQL adapter initializes schema and serves core API operations', a
   assert.equal(health.status, 200)
   assert.equal(health.headers.get('access-control-allow-origin'), 'https://studysignal.example')
   assert.equal((await health.json()).data.database, 'connected')
+  const preflight = await fetch(`${baseUrl}/subjects`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://studysignal.example',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'content-type',
+    },
+  })
+  assert.equal(preflight.status, 204)
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://studysignal.example')
+  const blockedOrigin = await fetch(`${baseUrl}/health`, { headers: { Origin: 'https://other.example' } })
+  assert.equal(blockedOrigin.headers.get('access-control-allow-origin'), null)
 
   const subjectResponse = await fetch(`${baseUrl}/subjects`, {
     method: 'POST',

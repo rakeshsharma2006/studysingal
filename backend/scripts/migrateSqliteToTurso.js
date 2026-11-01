@@ -3,7 +3,7 @@ require('dotenv').config()
 const fs = require('node:fs')
 const path = require('node:path')
 const Database = require('better-sqlite3')
-const { createClient } = require('@libsql/client')
+const { createClient } = require('@libsql/client/web')
 const { migrateTurso, splitMigrationStatements } = require('../database/turso')
 
 const TABLES = [
@@ -32,6 +32,11 @@ function getBackupPath(sourcePath) {
 async function assertTargetEmpty(client) {
   const populated = []
   for (const table of TABLES) {
+    const tableResult = await client.execute({
+      sql: 'SELECT 1 FROM sqlite_master WHERE type = ? AND name = ?',
+      args: ['table', table],
+    })
+    if (!tableResult.rows.length) continue
     const result = await client.execute(`SELECT COUNT(*) AS count FROM "${table}"`)
     const count = Number(result.rows[0].count)
     if (count) populated.push({ table, count })
@@ -96,6 +101,7 @@ async function migrateSqliteToTurso({
     if (foreignKeyViolations.length) throw new Error(`SQLite source contains ${foreignKeyViolations.length} foreign-key violation(s).`)
 
     client ||= createClient({ url, authToken })
+    await assertTargetEmpty(client)
     await migrateTurso(client)
     await assertTargetEmpty(client)
     const sourceCounts = Object.fromEntries(TABLES.map((table) => [

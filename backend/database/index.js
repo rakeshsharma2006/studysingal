@@ -1,11 +1,11 @@
 const path = require('node:path')
-const Database = require('better-sqlite3')
 const { migrate } = require('./migrate')
 
 let database
 let databasePromise
 
 function createDatabase(filename = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'studysignal.sqlite')) {
+  const Database = require('better-sqlite3')
   let db
   try {
     if (filename !== ':memory:') {
