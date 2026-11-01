@@ -13,7 +13,25 @@ const { createDashboardRouter } = require('./dashboard')
 
 function createApiRouter(db) {
   const router = express.Router()
-  router.get('/health', (req, res) => res.json({ data: { status: 'ok', database: 'connected' } }))
+  router.get('/health', (req, res) => {
+    try {
+      db.prepare('SELECT 1').get()
+      return res.json({ data: { status: 'ok', database: 'connected' } })
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: 'health_check_failed',
+        requestId: req.requestId,
+        errorName: error.name,
+        errorCode: error.code,
+      }))
+      return res.status(503).json({
+        error: {
+          code: 'DATABASE_UNAVAILABLE',
+          message: 'The application database is unavailable.',
+        },
+      })
+    }
+  })
   router.use('/dashboard', createDashboardRouter(db))
   router.use('/analytics', createAnalyticsRouter(db))
   router.use('/recovery', createRecoveryRouter(db))

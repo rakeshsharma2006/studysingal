@@ -1,4 +1,11 @@
-const API_BASE = '/api'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
+
+function apiError(message, status, requestId) {
+  const error = new Error(message)
+  error.status = status
+  error.requestId = requestId
+  return error
+}
 
 export async function apiRequest(path, options = {}) {
   let response
@@ -15,11 +22,31 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (response.status === 204) return null
-  const payload = await response.json()
+  const requestId = response.headers.get('x-request-id')
+  const contentType = response.headers.get('content-type') || ''
+  if (!/^application\/(?:json|[\w.-]+\+json)\s*(?:;|$)/i.test(contentType)) {
+    throw apiError(
+      `The StudySignal API returned a non-JSON response (HTTP ${response.status}). Check the backend deployment and API URL.`,
+      response.status,
+      requestId,
+    )
+  }
+
+  let payload
+  try {
+    payload = await response.json()
+  } catch {
+    throw apiError(
+      `The StudySignal API returned invalid JSON (HTTP ${response.status}). Check the backend deployment logs.`,
+      response.status,
+      requestId,
+    )
+  }
   if (!response.ok) {
     const error = new Error(payload.error?.message || `Request failed with status ${response.status}.`)
     error.status = response.status
     error.details = payload.error?.details
+    error.requestId = payload.error?.requestId || requestId
     throw error
   }
   return payload.data

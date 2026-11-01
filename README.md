@@ -22,7 +22,7 @@ npm run dev:api
 npm run dev
 ```
 
-Vite runs at `http://localhost:5173` and proxies `/api` requests to Express at `http://localhost:3001`. The SQLite database is initialized automatically at `backend/data/studysignal.sqlite`. Set `DATABASE_PATH` or `PORT` in `backend/.env` to override the defaults. `backend/.env.example` documents the optional settings.
+Vite runs at `http://localhost:5173` and proxies `/api` requests to Express at `http://localhost:3001`. The SQLite database is initialized automatically at `backend/data/studysignal.sqlite`. Set `DATABASE_PATH`, `PORT`, or `CORS_ORIGINS` in `backend/.env` to override the defaults. `backend/.env.example` documents the optional settings.
 
 ### Environment variables
 
@@ -30,10 +30,20 @@ Vite runs at `http://localhost:5173` and proxies `/api` requests to Express at `
 |---|---|---|
 | `PORT` | `3001` | Express listening port |
 | `DATABASE_PATH` | `backend/data/studysignal.sqlite` | SQLite database file path |
+| `CORS_ORIGINS` | `http://localhost:5173` in the example env file | Comma-separated browser origins permitted to call the API; configure the deployed frontend origin in production |
+| `VITE_API_BASE_URL` | `/api` | Frontend build-time API base URL; set to `https://<backend-domain>/api` when frontend and backend are deployed separately |
 | `KNOWLEDGE_NEEDS_ATTENTION_BELOW` | `50` | Evidence score below which a topic needs attention |
 | `KNOWLEDGE_REINFORCEMENT_BELOW` | `70` | Evidence score below which a topic needs reinforcement |
 
 Thresholds must be between 0 and 100, with the reinforcement threshold no lower than the attention threshold. The paths in `.env` are resolved relative to the backend process working directory.
+
+### Vercel deployment notes
+
+The backend directory must be the Vercel project's **Root Directory** so its `package.json` and Express entry point are installed and detected. Express on Vercel can use an exported app or a port listener; this backend currently uses the listener pattern. The repository has no Vercel project settings to inspect, so verify the project's Root Directory and deployment logs in the Vercel dashboard.
+
+Configure `CORS_ORIGINS` on the backend deployment with the exact deployed frontend origin(s), without a path. Configure `VITE_API_BASE_URL` on the frontend project as the backend URL ending in `/api`; Vite embeds this value at build time, so redeploy after changing it. The frontend displays an actionable error instead of attempting to parse platform HTML as API JSON.
+
+**SQLite is not suitable for persistent writes on Vercel Functions.** Vercel's Node.js Function filesystem is read-only except for temporary `/tmp` scratch space; `/tmp` is not durable storage. This application creates its SQLite file and applies migrations during app initialization, and uses WAL mode. Do not point `DATABASE_PATH` at `/tmp` as a production persistence workaround. Before production data writes, either deploy this backend on a host with a persistent disk/volume to retain SQLite, or approve a hosted database migration (for example Postgres) and its required data-layer changes. No database records are modified by deployment diagnostics.
 
 ## Verify
 

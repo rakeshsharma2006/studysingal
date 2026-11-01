@@ -39,7 +39,23 @@ test('all academic APIs validate input and preserve relational history', async (
 
   const health = await request('/health')
   assert.equal(health.response.status, 200)
+  assert.match(health.response.headers.get('x-request-id'), /^[0-9a-f-]{36}$/i)
   assert.equal(health.payload.data.database, 'connected')
+
+  const missingRoute = await request('/not-a-route')
+  assert.equal(missingRoute.response.status, 404)
+  assert.equal(missingRoute.payload.error.code, 'NOT_FOUND')
+  assert.equal(typeof missingRoute.payload.error.requestId, 'string')
+
+  const malformedJson = await fetch(`${baseUrl}/subjects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{',
+  })
+  const malformedJsonPayload = await malformedJson.json()
+  assert.equal(malformedJson.status, 400)
+  assert.equal(malformedJsonPayload.error.code, 'INVALID_JSON')
+  assert.equal(typeof malformedJsonPayload.error.requestId, 'string')
 
   const subject = await request('/subjects', 'POST', { name: 'Biology', semester: 'Fall 2026', exam_date: '2026-12-10' })
   assert.equal(subject.response.status, 201)
@@ -175,7 +191,6 @@ test('all academic APIs validate input and preserve relational history', async (
     duration_minutes: 30,
     session_date: today,
   })).response.status, 400)
-  assert.equal((await request('/not-a-route')).response.status, 404)
   assert.equal(db.pragma('foreign_keys', { simple: true }), 1)
   assert.equal((await request(`/topics/${topicId}`, 'DELETE')).response.status, 409)
   assert.equal((await request(`/subjects/${subjectId}`, 'DELETE')).response.status, 409)
