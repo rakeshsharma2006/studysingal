@@ -3,13 +3,14 @@ const { getAcademicDebt } = require('./academicDebt')
 const { getKnowledgeAnalysis } = require('./knowledgeGap')
 const { getHabitImpact } = require('./habitImpact')
 
-function getAnalyticsReport(db, options = {}) {
-  return {
-    drift: getAcademicDrift(db, options),
-    debt: getAcademicDebt(db, options.today),
-    knowledge: getKnowledgeAnalysis(db, options),
-    habit_impact: getHabitImpact(db, options),
-  }
+async function getAnalyticsReport(db, options = {}) {
+  const [drift, debt, knowledge, habitImpact] = await Promise.all([
+    getAcademicDrift(db, options),
+    getAcademicDebt(db, options.today),
+    getKnowledgeAnalysis(db, options),
+    getHabitImpact(db, options),
+  ])
+  return { drift, debt, knowledge, habit_impact: habitImpact }
 }
 
 module.exports = { getAnalyticsReport }

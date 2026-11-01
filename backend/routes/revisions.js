@@ -6,9 +6,9 @@ const { todayLocal } = require('../utils/date')
 
 function createRevisionRouter(db) {
   const router = express.Router()
-  router.get('/overdue', validate(dateRange, 'query'), asyncHandler((req, res) => {
+  router.get('/overdue', validate(dateRange, 'query'), asyncHandler(async (req, res) => {
     const today = req.query.date || todayLocal()
-    const data = db.prepare(`
+    const data = await db.prepare(`
       SELECT rt.*, t.title AS topic_title, s.id AS subject_id, s.name AS subject_name
       FROM revision_tasks rt
       JOIN topics t ON t.id = rt.topic_id

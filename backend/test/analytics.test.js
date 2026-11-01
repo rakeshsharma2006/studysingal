@@ -121,10 +121,10 @@ test('habit analysis refuses comparisons below five observations per group', () 
   assert.equal(sufficient.differences.average_assessment_score, 10)
 })
 
-test('empty database analytics return stable zero-data structures', (context) => {
+test('empty database analytics return stable zero-data structures', async (context) => {
   const db = createDatabase(':memory:')
   context.after(() => db.close())
-  const report = getAnalyticsReport(db, { period: 'weekly', date: '2026-11-01', today: '2026-11-01' })
+  const report = await getAnalyticsReport(db, { period: 'weekly', date: '2026-11-01', today: '2026-11-01' })
   assert.equal(report.drift.time_drift_percentage, null)
   assert.equal(report.drift.task_drift_percentage, null)
   assert.equal(report.debt.total_debt_points, 0)

@@ -82,7 +82,7 @@ test('dashboard API returns real empty states and database-derived academic summ
     VALUES (?, '2026-10-31', 'PENDING')
   `).run(completedTopicId)
 
-  const data = getDashboardData(db, '2026-11-01')
+  const data = await getDashboardData(db, '2026-11-01')
   assert.equal(data.overview.syllabus.total_topics, 2)
   assert.equal(data.overview.syllabus.completed_topics, 1)
   assert.equal(data.overview.syllabus.completion_percent, 50)
@@ -107,7 +107,7 @@ test('dashboard API returns real empty states and database-derived academic summ
   assert.equal(data.recommendations[0].topic_id, plannedTopicId)
 })
 
-test('optional demo dataset is repeatable and reset preserves non-demo records', () => {
+test('optional demo dataset is repeatable and reset preserves non-demo records', async () => {
   const db = createDatabase(':memory:')
   try {
     const retainedSubject = db.prepare(`
@@ -129,7 +129,7 @@ test('optional demo dataset is repeatable and reset preserves non-demo records',
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM habits WHERE name LIKE 'Demo: %'").get().count, 6)
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM study_plans sp JOIN topics t ON t.id = sp.topic_id JOIN units u ON u.id = t.unit_id JOIN subjects s ON s.id = u.subject_id WHERE s.name LIKE 'Demo: %'").get().count, 14)
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM topic_assessments ta JOIN topics t ON t.id = ta.topic_id JOIN units u ON u.id = t.unit_id JOIN subjects s ON s.id = u.subject_id WHERE s.name LIKE 'Demo: %'").get().count, 12)
-    assert.equal(getDashboardData(db, '2026-11-01').demo_data_active, true)
+    assert.equal((await getDashboardData(db, '2026-11-01')).demo_data_active, true)
 
     const demoTopicId = db.prepare(`
       SELECT t.id FROM topics t JOIN units u ON u.id = t.unit_id
@@ -146,7 +146,7 @@ test('optional demo dataset is repeatable and reset preserves non-demo records',
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM subjects WHERE name LIKE 'Demo: %'").get().count, 0)
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM habits WHERE name LIKE 'Demo: %'").get().count, 0)
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM topic_completion_history WHERE topic_id IS NULL').get().count, 0)
-    assert.equal(getDashboardData(db, '2026-11-01').demo_data_active, false)
+    assert.equal((await getDashboardData(db, '2026-11-01')).demo_data_active, false)
   } finally {
     db.close()
   }

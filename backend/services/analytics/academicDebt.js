@@ -59,17 +59,16 @@ function calculateAcademicDebt({ studyTasks = [], revisionTasks = [], today = to
   }
 }
 
-function getAcademicDebt(db, today = todayLocal()) {
-  const studyTasks = db.prepare(`
+async function getAcademicDebt(db, today = todayLocal()) {
+  const [studyTasks, revisionTasks] = await Promise.all([db.prepare(`
     SELECT sp.id, sp.topic_id, sp.plan_date, sp.priority, sp.status, t.title AS topic_title
     FROM study_plans sp JOIN topics t ON t.id = sp.topic_id
     WHERE (sp.status = 'PLANNED' AND sp.plan_date < ?) OR sp.status = 'SKIPPED'
-  `).all(today)
-  const revisionTasks = db.prepare(`
+  `).all(today), db.prepare(`
     SELECT rt.id, rt.topic_id, rt.due_date, rt.status, t.title AS topic_title
     FROM revision_tasks rt JOIN topics t ON t.id = rt.topic_id
     WHERE rt.status = 'PENDING' AND rt.due_date < ?
-  `).all(today)
+  `).all(today)])
   return calculateAcademicDebt({ studyTasks, revisionTasks, today })
 }
 

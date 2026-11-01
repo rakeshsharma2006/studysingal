@@ -22,13 +22,13 @@ const querySchema = z.object({
 
 function createRecoveryRouter(db) {
   const router = express.Router()
-  router.get('/recommendations', validate(querySchema, 'query'), asyncHandler((req, res) => {
+  router.get('/recommendations', validate(querySchema, 'query'), asyncHandler(async (req, res) => {
     const thresholds = getKnowledgeThresholds({
       needsAttentionBelow: req.query.needsAttentionBelow,
       reinforcementBelow: req.query.reinforcementBelow,
     })
     res.json({
-      data: getRecommendations(db, {
+      data: await getRecommendations(db, {
         today: req.query.date,
         limit: req.query.limit,
         thresholds,

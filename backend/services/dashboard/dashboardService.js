@@ -30,11 +30,11 @@ function getCurrentStreak(dates, today) {
   return streak
 }
 
-function getDashboardData(db, today = todayLocal()) {
+async function getDashboardData(db, today = todayLocal()) {
   const week = getReportRange('weekly', today)
   const weekToDate = listCalendarDays(week.from, today)
   const heatmapDates = listCalendarDays(addCalendarDays(today, -13), today)
-  const subjectProgress = db.prepare(`
+  const subjectProgress = (await db.prepare(`
     SELECT s.id, s.name, s.semester, s.exam_date,
       COUNT(t.id) AS total_topics,
       SUM(CASE WHEN t.status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_topics
@@ -43,24 +43,24 @@ function getDashboardData(db, today = todayLocal()) {
     LEFT JOIN topics t ON t.unit_id = u.id
     GROUP BY s.id
     ORDER BY s.name COLLATE NOCASE
-  `).all().map((subject) => ({
+  `).all()).map((subject) => ({
     ...subject,
     completed_topics: subject.completed_topics || 0,
     progress_percent: subject.total_topics
       ? Math.round((subject.completed_topics / subject.total_topics) * 100)
       : 0,
   }))
-  const knowledge = getKnowledgeAnalysis(db, { today })
+  const knowledge = await getKnowledgeAnalysis(db, { today })
   const scoredTopics = knowledge.topics.filter((topic) => topic.latest_assessment?.evidence_score != null)
   const averageEvidenceScore = scoredTopics.length
     ? Math.round((scoredTopics.reduce((sum, topic) => sum + topic.latest_assessment.evidence_score, 0) / scoredTopics.length) * 10) / 10
     : null
   const totalTopics = subjectProgress.reduce((sum, subject) => sum + subject.total_topics, 0)
   const completedTopics = subjectProgress.reduce((sum, subject) => sum + subject.completed_topics, 0)
-  const activeHabits = db.prepare(`
+  const activeHabits = await db.prepare(`
     SELECT id, name, frequency FROM habits WHERE is_active = 1 ORDER BY name COLLATE NOCASE
   `).all()
-  const logs = db.prepare(`
+  const logs = await db.prepare(`
     SELECT hl.habit_id, hl.log_date, hl.completed
     FROM habit_logs hl
     JOIN habits h ON h.id = hl.habit_id
@@ -81,9 +81,9 @@ function getDashboardData(db, today = todayLocal()) {
       if (logByHabitDate.get(`${habit.id}:${date}`)) weeklyCompleted += 1
     }
   }
-  const completedActivityDates = db.prepare(`
+  const completedActivityDates = (await db.prepare(`
     SELECT DISTINCT log_date FROM habit_logs WHERE completed = 1 ORDER BY log_date
-  `).all().map((row) => row.log_date)
+  `).all()).map((row) => row.log_date)
   const todayHabits = activeHabits.map((habit) => ({
     ...habit,
     completed_today: Boolean(logByHabitDate.get(`${habit.id}:${today}`)),
@@ -105,7 +105,7 @@ function getDashboardData(db, today = todayLocal()) {
     }
   })
 
-  const todayPlans = db.prepare(`
+  const todayPlans = await db.prepare(`
     SELECT sp.id, sp.topic_id, sp.plan_date, sp.planned_minutes, sp.priority, sp.status,
       t.title AS topic_title, s.id AS subject_id, s.name AS subject_name
     FROM study_plans sp
@@ -115,13 +115,13 @@ function getDashboardData(db, today = todayLocal()) {
     WHERE sp.plan_date = ?
     ORDER BY CASE sp.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END, sp.id
   `).all(today)
-  const todayStudy = db.prepare(`
+  const todayStudy = await db.prepare(`
     SELECT COALESCE(SUM(duration_minutes), 0) AS actual_minutes,
       COUNT(*) AS session_count
     FROM study_sessions WHERE session_date = ?
   `).get(today)
 
-  const dailyStudy = db.prepare(`
+  const dailyStudy = await db.prepare(`
     SELECT date AS study_date,
       COALESCE((SELECT SUM(sp.planned_minutes) FROM study_plans sp WHERE sp.plan_date = calendar.date), 0) AS planned_minutes,
       COALESCE((SELECT COUNT(*) FROM study_plans sp WHERE sp.plan_date = calendar.date), 0) AS planned_tasks,
@@ -139,7 +139,7 @@ function getDashboardData(db, today = todayLocal()) {
     ) calendar
     ORDER BY study_date
   `).all(...Array(7).fill(null).map((_, index) => addCalendarDays(today, index - 6)))
-  const studySessionsBySubject = db.prepare(`
+  const studySessionsBySubject = await db.prepare(`
     SELECT s.id AS subject_id, s.name AS subject_name,
       COALESCE(SUM(ss.duration_minutes), 0) AS total_minutes,
       COUNT(ss.id) AS session_count
@@ -151,11 +151,11 @@ function getDashboardData(db, today = todayLocal()) {
     GROUP BY s.id
     ORDER BY total_minutes DESC, s.name COLLATE NOCASE
   `).all(week.from, today)
-  const weeklyStudySummary = db.prepare(`
+  const weeklyStudySummary = await db.prepare(`
     SELECT COALESCE(SUM(duration_minutes), 0) AS study_minutes, COUNT(*) AS session_count
     FROM study_sessions WHERE session_date BETWEEN ? AND ?
   `).get(week.from, today)
-  const assessmentRows = db.prepare(`
+  const assessmentRows = await db.prepare(`
     SELECT id, topic_id, quiz_score, recall_score, confidence, confidence_rating, created_at
     FROM topic_assessments
     WHERE substr(created_at, 1, 10) BETWEEN ? AND ?
@@ -180,7 +180,7 @@ function getDashboardData(db, today = todayLocal()) {
         : null,
     }
   })
-  const revisionTasks = db.prepare(`
+  const revisionTasks = await db.prepare(`
     SELECT rt.id, rt.topic_id, rt.due_date, t.title AS topic_title,
       s.name AS subject_name
     FROM revision_tasks rt
@@ -190,14 +190,16 @@ function getDashboardData(db, today = todayLocal()) {
     WHERE rt.status = 'PENDING' AND rt.due_date BETWEEN ? AND ?
     ORDER BY rt.due_date, rt.id
   `).all(today, addCalendarDays(today, 7))
-  const debt = getAcademicDebt(db, today)
-  const drift = getAcademicDrift(db, { period: 'weekly', date: today })
-  const forecast = getExamForecast(db, { today, targetTopicsPerDay: 1 })
+  const [debt, drift, forecast, recommendations] = await Promise.all([
+    getAcademicDebt(db, today),
+    getAcademicDrift(db, { period: 'weekly', date: today }),
+    getExamForecast(db, { today, targetTopicsPerDay: 1 }),
+    getRecommendations(db, { today, limit: 3 }),
+  ])
   const upcomingExams = forecast.forecasts
     .filter((item) => item.days_until_exam != null && item.days_until_exam >= 0)
     .sort((left, right) => left.days_until_exam - right.days_until_exam)
     .slice(0, 4)
-  const recommendations = getRecommendations(db, { today, limit: 3 })
   const knowledgeGaps = [...knowledge.weak_topics, ...knowledge.declining_topics]
   const uniqueKnowledgeGaps = [...new Map(knowledgeGaps.map((topic) => [topic.id, topic])).values()]
 

@@ -3,8 +3,8 @@ const { asyncHandler } = require('../middleware/asyncHandler')
 
 function createStudySessionRouter(db) {
   const router = express.Router()
-  router.get('/summary/by-subject', asyncHandler((req, res) => {
-    const data = db.prepare(`
+  router.get('/summary/by-subject', asyncHandler(async (req, res) => {
+    const data = await db.prepare(`
       SELECT s.id AS subject_id, s.name AS subject_name,
         COALESCE(SUM(ss.duration_minutes), 0) AS total_minutes,
         COUNT(ss.id) AS session_count

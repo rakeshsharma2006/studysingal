@@ -13,8 +13,8 @@ const querySchema = z.object({
 
 function createForecastRouter(db) {
   const router = express.Router()
-  router.get('/', validate(querySchema, 'query'), asyncHandler((req, res) => {
-    const data = getExamForecast(db, {
+  router.get('/', validate(querySchema, 'query'), asyncHandler(async (req, res) => {
+    const data = await getExamForecast(db, {
       today: req.query.date,
       subjectId: req.query.subjectId,
       targetTopicsPerDay: req.query.targetTopicsPerDay || 1,

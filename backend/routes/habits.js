@@ -36,16 +36,16 @@ function consecutiveStreaks(dates) {
 
 function createHabitRouter(db) {
   const router = express.Router()
-  router.get('/:habitId/history', validate(parentParams('habit'), 'params'), validate(dateRange, 'query'), asyncHandler((req, res) => {
+  router.get('/:habitId/history', validate(parentParams('habit'), 'params'), validate(dateRange, 'query'), asyncHandler(async (req, res) => {
     const { habitId } = req.params
-    const habit = db.prepare('SELECT id FROM habits WHERE id = ?').get(habitId)
+    const habit = await db.prepare('SELECT id FROM habits WHERE id = ?').get(habitId)
     if (!habit) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Habit not found.' } })
     const conditions = ['habit_id = ?', 'completed = 1']
     const values = [habitId]
     if (req.query.from) { conditions.push('log_date >= ?'); values.push(req.query.from) }
     if (req.query.to) { conditions.push('log_date <= ?'); values.push(req.query.to) }
-    const logs = db.prepare(`SELECT * FROM habit_logs WHERE ${conditions.join(' AND ')} ORDER BY log_date DESC`).all(...values)
-    const allDates = db.prepare('SELECT log_date FROM habit_logs WHERE habit_id = ? AND completed = 1 ORDER BY log_date').all(habitId).map((row) => row.log_date)
+    const logs = await db.prepare(`SELECT * FROM habit_logs WHERE ${conditions.join(' AND ')} ORDER BY log_date DESC`).all(...values)
+    const allDates = (await db.prepare('SELECT log_date FROM habit_logs WHERE habit_id = ? AND completed = 1 ORDER BY log_date').all(habitId)).map((row) => row.log_date)
     res.json({ data: { logs, ...consecutiveStreaks(allDates) } })
   }))
   return router

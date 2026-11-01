@@ -3,6 +3,7 @@ const Database = require('better-sqlite3')
 const { migrate } = require('./migrate')
 
 let database
+let databasePromise
 
 function createDatabase(filename = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'studysignal.sqlite')) {
   let db
@@ -30,15 +31,29 @@ function createDatabase(filename = process.env.DATABASE_PATH || path.join(__dirn
 }
 
 function getDatabase() {
-  if (!database) database = createDatabase()
-  return database
+  if (!databasePromise) {
+    if (process.env.NODE_ENV === 'production' || process.env.TURSO_DATABASE_URL || process.env.TURSO_AUTH_TOKEN) {
+      const { createTursoDatabase } = require('./turso')
+      databasePromise = createTursoDatabase({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      })
+    } else {
+      databasePromise = Promise.resolve().then(() => {
+        database = createDatabase()
+        return database
+      })
+    }
+  }
+  return databasePromise
 }
 
 function closeDatabase() {
-  if (database) {
-    database.close()
+  return Promise.resolve(databasePromise).then((db) => {
+    db?.close?.()
     database = undefined
-  }
+    databasePromise = undefined
+  })
 }
 
 module.exports = { createDatabase, getDatabase, closeDatabase }

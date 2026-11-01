@@ -7,8 +7,8 @@ const { todayLocal } = require('../utils/date')
 
 function createDashboardRouter(db) {
   const router = express.Router()
-  router.get('/', validate(dateRange, 'query'), asyncHandler((req, res) => {
-    res.json({ data: getDashboardData(db, req.query.date || todayLocal()) })
+  router.get('/', validate(dateRange, 'query'), asyncHandler(async (req, res) => {
+    res.json({ data: await getDashboardData(db, req.query.date || todayLocal()) })
   }))
   return router
 }

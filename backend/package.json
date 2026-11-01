@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "db:migrate:turso": "node scripts/migrateSqliteToTurso.js",
+    "db:check:turso": "node scripts/checkTurso.js",
     "demo:seed": "node scripts/demoData.js seed",
     "demo:reset": "node scripts/demoData.js reset",
     "test": "node --test"
@@ -15,6 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",

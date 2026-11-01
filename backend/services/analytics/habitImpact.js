@@ -49,26 +49,24 @@ function compareHabitGroups(completedDays = [], otherDays = []) {
   }
 }
 
-function getHabitImpact(db, { today = todayLocal(), days = 30 } = {}) {
+async function getHabitImpact(db, { today = todayLocal(), days = 30 } = {}) {
   const start = new Date(`${today}T00:00:00.000Z`)
   start.setUTCDate(start.getUTCDate() - (days - 1))
   const rangeStart = start.toISOString().slice(0, 10)
-  const rows = db.prepare(`
+  const [rows, sessions, assessmentRows] = await Promise.all([db.prepare(`
     SELECT h.id AS habit_id, h.name AS habit_name, h.is_active,
       hl.log_date, hl.completed
     FROM habits h LEFT JOIN habit_logs hl
       ON hl.habit_id = h.id AND hl.log_date BETWEEN ? AND ? AND hl.completed = 1
     ORDER BY h.id, hl.log_date
-  `).all(rangeStart, today)
-  const sessions = db.prepare(`
+  `).all(rangeStart, today), db.prepare(`
     SELECT session_date, SUM(duration_minutes) AS study_minutes, COUNT(*) AS session_count
     FROM study_sessions WHERE session_date BETWEEN ? AND ?
     GROUP BY session_date
-  `).all(rangeStart, today)
-  const assessmentRows = db.prepare(`
+  `).all(rangeStart, today), db.prepare(`
     SELECT date(created_at) AS assessment_date, quiz_score, recall_score, confidence, confidence_rating
     FROM topic_assessments WHERE date(created_at) BETWEEN ? AND ?
-  `).all(rangeStart, today)
+  `).all(rangeStart, today)])
 
   const sessionsByDate = new Map(sessions.map((row) => [row.session_date, row]))
   const assessmentsByDate = new Map()

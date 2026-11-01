@@ -168,18 +168,17 @@ function buildRecommendations({
   }
 }
 
-function getRecommendations(db, options = {}) {
+async function getRecommendations(db, options = {}) {
   const today = options.today || todayLocal()
-  const topics = db.prepare(`
+  const [topics, assessments, revisions] = await Promise.all([db.prepare(`
     SELECT t.id, t.title, t.status, t.priority, t.estimated_minutes,
       u.subject_id, s.name AS subject_name, s.exam_date
     FROM topics t
     JOIN units u ON u.id = t.unit_id
     JOIN subjects s ON s.id = u.subject_id
     ORDER BY t.id
-  `).all()
-  const assessments = db.prepare('SELECT * FROM topic_assessments ORDER BY created_at DESC, id DESC').all()
-  const revisions = db.prepare('SELECT * FROM revision_tasks ORDER BY due_date, id').all()
+  `).all(), db.prepare('SELECT * FROM topic_assessments ORDER BY created_at DESC, id DESC').all(),
+  db.prepare('SELECT * FROM revision_tasks ORDER BY due_date, id').all()])
   const { buildKnowledgeAnalysis } = require('../analytics/knowledgeGap')
   const knowledge = buildKnowledgeAnalysis({ topics, assessments, revisions, today, thresholds: options.thresholds })
   const analyzed = new Map(knowledge.topics.map((topic) => [topic.id, topic]))

@@ -157,23 +157,21 @@ function buildSubjectForecast({
   }
 }
 
-function getExamForecast(db, {
+async function getExamForecast(db, {
   today = todayLocal(),
   subjectId,
   targetTopicsPerDay = 1,
   scenarios = [1, 2],
 } = {}) {
-  const subjects = db.prepare(`
+  const [subjects, topics, completionHistory, sessions] = await Promise.all([db.prepare(`
     SELECT s.* FROM subjects s
     WHERE (? IS NULL OR s.id = ?)
     ORDER BY s.exam_date IS NULL, s.exam_date, s.name COLLATE NOCASE
-  `).all(subjectId || null, subjectId || null)
-  const topics = db.prepare(`
+  `).all(subjectId || null, subjectId || null), db.prepare(`
     SELECT t.id, t.unit_id, t.status, u.subject_id
     FROM topics t JOIN units u ON u.id = t.unit_id
-  `).all()
-  const completionHistory = db.prepare('SELECT topic_id, completed_at FROM topic_completion_history').all()
-  const sessions = db.prepare('SELECT topic_id, session_date, duration_minutes FROM study_sessions').all()
+  `).all(), db.prepare('SELECT topic_id, completed_at FROM topic_completion_history').all(),
+  db.prepare('SELECT topic_id, session_date, duration_minutes FROM study_sessions').all()])
   return {
     as_of_date: today,
     forecast_window_days: FORECAST_WINDOW_DAYS,

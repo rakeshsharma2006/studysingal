@@ -13,9 +13,9 @@ const { createDashboardRouter } = require('./dashboard')
 
 function createApiRouter(db) {
   const router = express.Router()
-  router.get('/health', (req, res) => {
+  router.get('/health', async (req, res) => {
     try {
-      db.prepare('SELECT 1').get()
+      await db.prepare('SELECT 1').get()
       return res.json({ data: { status: 'ok', database: 'connected' } })
     } catch (error) {
       console.error(JSON.stringify({

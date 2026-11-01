@@ -72,15 +72,14 @@ function buildKnowledgeAnalysis({ topics = [], assessments = [], revisions = [],
   }
 }
 
-function getKnowledgeAnalysis(db, options = {}) {
+async function getKnowledgeAnalysis(db, options = {}) {
   const thresholds = getKnowledgeThresholds(options.thresholds)
-  const topics = db.prepare(`
+  const [topics, assessments, revisions] = await Promise.all([db.prepare(`
     SELECT t.*, u.subject_id, s.name AS subject_name, u.title AS unit_title
     FROM topics t JOIN units u ON u.id = t.unit_id JOIN subjects s ON s.id = u.subject_id
     ORDER BY s.name COLLATE NOCASE, u.position, t.id
-  `).all()
-  const assessments = db.prepare('SELECT * FROM topic_assessments ORDER BY created_at DESC, id DESC').all()
-  const revisions = db.prepare('SELECT * FROM revision_tasks ORDER BY due_date, id').all()
+  `).all(), db.prepare('SELECT * FROM topic_assessments ORDER BY created_at DESC, id DESC').all(),
+  db.prepare('SELECT * FROM revision_tasks ORDER BY due_date, id').all()])
   return buildKnowledgeAnalysis({ topics, assessments, revisions, today: options.today || todayLocal(), thresholds })
 }
 

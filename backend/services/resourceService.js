@@ -27,7 +27,7 @@ function createResourceService(db, name) {
   if (!columns) throw new Error(`Unknown resource: ${name}`)
 
   return {
-    list(filters = {}) {
+    async list(filters = {}) {
       if (name === 'habit_logs' || name === 'study_sessions') {
         const dateColumn = name === 'habit_logs' ? 'log_date' : 'session_date'
         const clauses = []
@@ -38,30 +38,30 @@ function createResourceService(db, name) {
         if (filters.from) { clauses.push(`${dateColumn} >= ?`); values.push(filters.from) }
         if (filters.to) { clauses.push(`${dateColumn} <= ?`); values.push(filters.to) }
         const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''
-        return db.prepare(`SELECT * FROM ${name}${where} ORDER BY ${dateColumn} DESC, id DESC`).all(...values)
+        return (await db.prepare(`SELECT * FROM ${name}${where} ORDER BY ${dateColumn} DESC, id DESC`).all(...values))
           .map((row) => mapRow(name, row))
       }
       const filterEntries = Object.entries(filters).filter(([key, value]) => columns.includes(key) && value !== undefined)
       const where = filterEntries.length ? ` WHERE ${filterEntries.map(([key]) => `${key} = @${key}`).join(' AND ')}` : ''
-      const rows = db.prepare(`SELECT * FROM ${name}${where} ORDER BY id DESC`).all(
+      const rows = await db.prepare(`SELECT * FROM ${name}${where} ORDER BY id DESC`).all(
         Object.fromEntries(filterEntries.map(([key, value]) => [key, toDatabaseValue(value)])),
       )
       return rows.map((row) => mapRow(name, row))
     },
-    get(id) {
-      return mapRow(name, db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(id))
+    async get(id) {
+      return mapRow(name, await db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(id))
     },
-    create(data) {
+    async create(data) {
       if (name === 'topics' && data.status === 'COMPLETED' && data.completed_at === undefined) {
         data = { ...data, completed_at: todayLocal() }
       }
       const keys = Object.keys(data).filter((key) => columns.includes(key))
-      const result = db.prepare(
+      const result = await db.prepare(
         `INSERT INTO ${name} (${keys.join(', ')}) VALUES (${keys.map((key) => `@${key}`).join(', ')})`,
       ).run(Object.fromEntries(keys.map((key) => [key, toDatabaseValue(data[key])])))
       return this.get(Number(result.lastInsertRowid))
     },
-    update(id, data) {
+    async update(id, data) {
       if (name === 'topics' && data.status === 'COMPLETED' && data.completed_at === undefined) {
         data = { ...data, completed_at: todayLocal() }
       }
@@ -75,13 +75,13 @@ function createResourceService(db, name) {
         data = { ...data, completed_at: null }
       }
       const keys = Object.keys(data).filter((key) => columns.includes(key))
-      const result = db.prepare(
+      const result = await db.prepare(
         `UPDATE ${name} SET ${keys.map((key) => `${key} = @${key}`).join(', ')} WHERE id = @id`,
       ).run({ ...Object.fromEntries(keys.map((key) => [key, toDatabaseValue(data[key])])), id })
       return result.changes ? this.get(id) : null
     },
-    delete(id) {
-      return db.prepare(`DELETE FROM ${name} WHERE id = ?`).run(id).changes > 0
+    async delete(id) {
+      return (await db.prepare(`DELETE FROM ${name} WHERE id = ?`).run(id)).changes > 0
     },
   }
 }

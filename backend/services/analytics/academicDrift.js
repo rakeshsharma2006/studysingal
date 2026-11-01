@@ -35,18 +35,17 @@ function getReportRange(period = 'daily', date = todayLocal()) {
   return { from, to: addCalendarDays(from, 6) }
 }
 
-function getAcademicDrift(db, { period = 'daily', date = todayLocal() } = {}) {
+async function getAcademicDrift(db, { period = 'daily', date = todayLocal() } = {}) {
   const range = getReportRange(period, date)
-  const planned = db.prepare(`
+  const [planned, actual] = await Promise.all([db.prepare(`
     SELECT COALESCE(SUM(planned_minutes), 0) AS planned_minutes,
       COUNT(*) AS planned_tasks,
       SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_tasks
     FROM study_plans WHERE plan_date BETWEEN ? AND ?
-  `).get(range.from, range.to)
-  const actual = db.prepare(`
+  `).get(range.from, range.to), db.prepare(`
     SELECT COALESCE(SUM(duration_minutes), 0) AS actual_minutes
     FROM study_sessions WHERE session_date BETWEEN ? AND ?
-  `).get(range.from, range.to)
+  `).get(range.from, range.to)])
   return {
     period,
     ...range,

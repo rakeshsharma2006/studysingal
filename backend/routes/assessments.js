@@ -8,16 +8,16 @@ const { calculateEvidenceScore } = require('../services/analytics/knowledgeConfi
 function createAssessmentRouter(db) {
   const router = express.Router()
   const service = createResourceService(db, 'topic_assessments')
-  router.get('/', asyncHandler((req, res) => {
-    const data = service.list().map((attempt) => ({ ...attempt, ...calculateEvidenceScore(attempt) }))
+  router.get('/', asyncHandler(async (req, res) => {
+    const data = (await service.list()).map((attempt) => ({ ...attempt, ...calculateEvidenceScore(attempt) }))
     res.json({ data })
   }))
-  router.post('/', validate(createSchemas.topic_assessments), asyncHandler((req, res) => {
-    const data = service.create(req.body)
+  router.post('/', validate(createSchemas.topic_assessments), asyncHandler(async (req, res) => {
+    const data = await service.create(req.body)
     res.status(201).json({ data: { ...data, ...calculateEvidenceScore(data) } })
   }))
-  router.get('/:id', validate(idParams, 'params'), asyncHandler((req, res) => {
-    const data = service.get(req.params.id)
+  router.get('/:id', validate(idParams, 'params'), asyncHandler(async (req, res) => {
+    const data = await service.get(req.params.id)
     if (!data) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Assessment not found.' } })
     return res.json({ data: { ...data, ...calculateEvidenceScore(data) } })
   }))

@@ -8,6 +8,8 @@
     "dev:api": "npm --prefix backend run dev",
     "demo:seed": "npm --prefix backend run demo:seed",
     "demo:reset": "npm --prefix backend run demo:reset",
+    "db:check:turso": "npm --prefix backend run db:check:turso",
+    "db:migrate:turso": "npm --prefix backend run db:migrate:turso",
     "test:api": "npm --prefix backend test",
     "build": "vite build",
     "lint": "eslint .",

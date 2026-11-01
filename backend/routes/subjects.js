@@ -5,8 +5,8 @@ const { parentParams } = require('../validators/schemas')
 
 function createSubjectRouter(db) {
   const router = express.Router()
-  router.get('/progress', asyncHandler((req, res) => {
-    const subjects = db.prepare(`
+  router.get('/progress', asyncHandler(async (req, res) => {
+    const subjects = (await db.prepare(`
       SELECT s.id, s.name, s.semester, s.exam_date,
         COUNT(t.id) AS total_topics,
         SUM(CASE WHEN t.status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_topics
@@ -15,7 +15,7 @@ function createSubjectRouter(db) {
       LEFT JOIN topics t ON t.unit_id = u.id
       GROUP BY s.id
       ORDER BY s.name COLLATE NOCASE
-    `).all().map((subject) => ({
+    `).all()).map((subject) => ({
       ...subject,
       completed_topics: subject.completed_topics || 0,
       progress_percent: subject.total_topics ? Math.round((subject.completed_topics / subject.total_topics) * 100) : 0,
@@ -23,11 +23,11 @@ function createSubjectRouter(db) {
     res.json({ data: subjects })
   }))
 
-  router.get('/:subjectId/units', validate(parentParams('subject'), 'params'), asyncHandler((req, res) => {
-    if (!db.prepare('SELECT 1 FROM subjects WHERE id = ?').get(req.params.subjectId)) {
+  router.get('/:subjectId/units', validate(parentParams('subject'), 'params'), asyncHandler(async (req, res) => {
+    if (!await db.prepare('SELECT 1 FROM subjects WHERE id = ?').get(req.params.subjectId)) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subject not found.' } })
     }
-    const units = db.prepare('SELECT * FROM units WHERE subject_id = ? ORDER BY position, id').all(req.params.subjectId)
+    const units = await db.prepare('SELECT * FROM units WHERE subject_id = ? ORDER BY position, id').all(req.params.subjectId)
     res.json({ data: units })
   }))
   return router
